@@ -36,9 +36,9 @@ struct CanvasHost: NSViewRepresentable {
         }
         CanvasRenderer.draw(page: session.page, in: c)
         for id in session.selection {
-            guard let n = session.document.node(id: id), let transform = SceneGeometry.worldTransform(id: id, in: session.page) else { continue }
-            c.saveGState(); c.concatenate(transform); c.setStrokeColor(NSColor.systemPurple.cgColor); c.setLineWidth(1.5/session.zoom)
-            let rect = CGRect(origin: .zero, size: n.frame.size); c.stroke(rect)
+            guard let n = session.document.node(id: id), let geometry = CanvasRenderer.selectionGeometry(id: id, page: session.page) else { continue }
+            c.saveGState(); for clip in geometry.clips { c.addPath(clip); c.clip() }; c.concatenate(geometry.transform); c.setStrokeColor(NSColor.systemPurple.cgColor); c.setLineWidth(1.5/session.zoom)
+            let rect = CGRect(origin: .zero, size: n.frame.size); c.stroke(geometry.localBounds)
             if n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
             c.restoreGState()
         }
@@ -64,7 +64,7 @@ struct CanvasHost: NSViewRepresentable {
             session.beginGesture()
             let kind = NodeKind(rawValue: session.tool.rawValue) ?? .rectangle
             let node = DesignNode(name: session.tool.title, kind: kind, frame: CGRect(x: p.x, y: p.y, width: kind == .text ? 240 : 120, height: kind == .text ? 80 : 100), text: kind == .text ? "输入文字" : "")
-            try? session.document.insertNode(node, into: session.pageID); creation = node.id; session.selection = [node.id]
+            if session.create(node) { creation = node.id } else { session.cancelGesture(); start = nil }
         }
         needsDisplay = true
     }

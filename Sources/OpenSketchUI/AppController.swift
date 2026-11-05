@@ -29,6 +29,11 @@ import OpenSketchCore
         switch alert.runModal() { case .alertFirstButtonReturn: return saveDocument(forcePanel: false); case .alertThirdButtonReturn: return true; default: return false }
     }
     @objc func newDocument(_ sender: Any?) { if mayDiscard() { session.replace(.blank()); window.makeKeyAndOrderFront(nil) } }
+    @objc func openExample(_ sender: Any?) {
+        guard mayDiscard() else { return }
+        session.replace(.blank()); session.change { $0 = EditorSession.exampleDocument() }; session.reconcilePage()
+        window.makeKeyAndOrderFront(nil); session.fitCanvas?()
+    }
     @objc func openDocument(_ sender: Any?) { session.finishInput?(); let panel = NSOpenPanel(); panel.allowedContentTypes = [UTType(filenameExtension: "opensketch") ?? .package]; panel.canChooseDirectories = true; if panel.runModal() == .OK, let url = panel.url { openURL(url) } }
     func openURL(_ url: URL) { do { let doc = try DocumentCodec.load(from: url); if mayDiscard() { session.replace(doc, url: url); window?.makeKeyAndOrderFront(nil) } } catch { self.error(error) } }
     @objc func save(_ sender: Any?) { _ = saveDocument(forcePanel: false) }
@@ -70,7 +75,7 @@ import OpenSketchCore
         func menu(_ title: String) -> NSMenu { let item = NSMenuItem(); item.title = title; let m = NSMenu(title: title); item.submenu = m; bar.addItem(item); return m }
         func add(_ m: NSMenu, _ title: String, _ action: Selector, _ key: String = "", shift: Bool = false, responder: Bool = false) { let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = responder ? nil : self; item.keyEquivalentModifierMask = shift ? [.command,.shift] : [.command]; m.addItem(item) }
         let app = menu("openSketch"); add(app,"退出 openSketch",#selector(NSApplication.terminate(_:)),"q",responder:true)
-        let file = menu("文件"); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭窗口",#selector(NSWindow.performClose(_:)),"w",responder:true)
+        let file = menu("文件"); add(file,"打开示例设计",#selector(openExample(_:))); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭窗口",#selector(NSWindow.performClose(_:)),"w",responder:true)
         let edit = menu("编辑"); add(edit,"撤销",#selector(undo(_:)),"z",responder:true); add(edit,"重做",#selector(redo(_:)),"z",shift:true,responder:true); add(edit,"剪切",#selector(NSText.cut(_:)),"x",responder:true); add(edit,"拷贝",#selector(copy(_:)),"c",responder:true); add(edit,"粘贴",#selector(paste(_:)),"v",responder:true); add(edit,"全选",#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,"复制图层",#selector(duplicate(_:)),"d"); add(edit,"删除图层",#selector(delete(_:)))
         let view = menu("视图"); add(view,"适合窗口",#selector(fit(_:)),"1"); add(view,"实际大小 100%",#selector(actualSize(_:)),"0")
         NSApp.nextResponder = self

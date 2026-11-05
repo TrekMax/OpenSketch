@@ -2,6 +2,31 @@ import AppKit
 import OpenSketchCore
 
 @MainActor enum CanvasRenderer {
+    struct SelectionGeometry {
+        let transform: CGAffineTransform
+        let localBounds: CGRect
+        let clips: [CGPath]
+        var visibleBounds: CGRect { clips.reduce(localBounds.applying(transform)) { $0.intersection($1.boundingBoxOfPath) } }
+    }
+    static func localBounds(_ node: DesignNode) -> CGRect {
+        let path = node.kind == .path ? SceneGeometry.cgPath(for: node.path) : CGPath(rect: CGRect(origin: .zero, size: node.frame.size), transform: nil)
+        var bounds = path.boundingBoxOfPath
+        if node.style.stroke != nil, node.style.strokeWidth > 0 { bounds = bounds.union(path.copy(strokingWithWidth: node.style.strokeWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10).boundingBoxOfPath) }
+        return bounds
+    }
+    static func selectionGeometry(id: UUID, page: DesignPage) -> SelectionGeometry? {
+        func visit(_ nodes: [DesignNode], parent: CGAffineTransform, clips: [CGPath]) -> SelectionGeometry? {
+            for node in nodes where node.isVisible {
+                var world = SceneGeometry.localTransform(for: node).concatenating(parent)
+                if node.id == id { return SelectionGeometry(transform: world, localBounds: localBounds(node), clips: clips) }
+                var nextClips = clips
+                if node.kind == .frame && node.clipsContent { nextClips.append(CGPath(rect: CGRect(origin: .zero, size: node.frame.size), transform: &world)) }
+                if let found = visit(node.children, parent: world, clips: nextClips) { return found }
+            }
+            return nil
+        }
+        return visit(page.nodes, parent: .identity, clips: [])
+    }
     static func draw(page: DesignPage, in context: CGContext) { for node in page.nodes { draw(node, in: context) } }
     static func draw(_ node: DesignNode, in c: CGContext) {
         guard node.isVisible else { return }
@@ -27,10 +52,7 @@ import OpenSketchCore
         func visit(_ nodes: [DesignNode], parent: CGAffineTransform, clip: CGRect?) {
             for n in nodes where n.isVisible {
                 let world = SceneGeometry.localTransform(for: n).concatenating(parent)
-                let path = n.kind == .path ? SceneGeometry.cgPath(for: n.path) : CGPath(rect: CGRect(origin: .zero, size: n.frame.size), transform: nil)
-                var local = path.boundingBoxOfPath
-                if n.style.stroke != nil, n.style.strokeWidth > 0 { local = local.union(path.copy(strokingWithWidth: n.style.strokeWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10).boundingBoxOfPath) }
-                var b = local.applying(world)
+                var b = localBounds(n).applying(world)
                 if let clip { b = b.intersection(clip) }; result = result.union(b)
                 let childClip = n.kind == .frame && n.clipsContent ? CGRect(origin: .zero, size: n.frame.size).applying(world).intersection(clip ?? .infinite) : clip
                 visit(n.children, parent: world, clip: childClip)

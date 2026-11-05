@@ -31,7 +31,8 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         while let current = next { guard let n = document.node(id: current), !n.isLocked, n.isVisible else { return false }; next = document.parentID(of: current) }
         return true
     }
-    var roots: [UUID] { selection.filter { id in
+    var roots: [UUID] { SceneGeometry.traversal(in: page).map(\.id).filter { id in
+        guard selection.contains(id) else { return false }
         guard editable(id) else { return false }
         var p = document.parentID(of: id)
         while let ancestor = p { if selection.contains(ancestor) { return false }; p = document.parentID(of: ancestor) }
@@ -51,8 +52,18 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
             document.updateNode(id: id) { $0.frame.origin = CGPoint(x: original.frame.minX + b.x-a.x, y: original.frame.minY + b.y-a.y) }
         }
     }
-    func undo() { finishInput?(); if let d = history.undo(current: document) { document = d }; selection = selection.filter { document.node(id: $0) != nil } }
-    func redo() { finishInput?(); if let d = history.redo(current: document) { document = d } }
+    func undo() { finishInput?(); if let d = history.undo(current: document) { document = d }; reconcilePage() }
+    func redo() { finishInput?(); if let d = history.redo(current: document) { document = d }; reconcilePage() }
+    func reconcilePage() {
+        if !document.pages.contains(where: { $0.id == pageID }) { pageID = document.pages[0].id }
+        let active = Set(SceneGeometry.traversal(in: page).map(\.id))
+        selection.formIntersection(active)
+    }
+    @discardableResult func create(_ node: DesignNode) -> Bool {
+        reconcilePage()
+        do { try document.insertNode(node, into: pageID); selection = [node.id]; return true }
+        catch { message = "无法创建图层：\(error.localizedDescription)"; return false }
+    }
     func deleteSelection() { finishInput?(); let ids = roots; change { d in for id in ids { d.removeNode(id: id) } }; selection = [] }
     func detachedSelection() -> [DesignNode] {
         roots.compactMap { id in
@@ -64,7 +75,14 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         }
     }
     func duplicate() { insert(detachedSelection().map { $0.cloned() }) }
-    func insert(_ nodes: [DesignNode]) { let pid = pageID; change { d in for var n in nodes { n.frame.origin.x += 20; n.frame.origin.y += 20; try? d.insertNode(n, into: pid) } }; selection = Set(nodes.map(\.id)) }
+    func insert(_ nodes: [DesignNode]) {
+        finishInput?(); reconcilePage(); var candidate = document
+        do {
+            for var node in nodes { node.frame.origin.x += 20; node.frame.origin.y += 20; try candidate.insertNode(node, into: pageID) }
+            _ = try DocumentCodec.encode(candidate)
+            change { $0 = candidate }; selection = Set(nodes.map(\.id))
+        } catch { message = "无法插入图层：\(error.localizedDescription)" }
+    }
     func copy() { let nodes = detachedSelection(); guard let data = try? JSONEncoder().encode(nodes) else { return }; NSPasteboard.general.clearContents(); NSPasteboard.general.setData(data, forType: .init("org.opensketch.nodes")) }
     func paste() {
         guard let data = NSPasteboard.general.data(forType: .init("org.opensketch.nodes")), data.count <= DocumentCodec.maximumDataBytes,
@@ -75,4 +93,13 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     }
     func addPage() { finishInput?(); let p = DesignPage(name: "页面 \(document.pages.count + 1)"); change { $0.pages.append(p) }; pageID = p.id; selection = [] }
     func replace(_ d: DesignDocument, url: URL? = nil) { document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
+    static func exampleDocument() -> DesignDocument {
+        let title = DesignNode(name: "问候", kind: .text, frame: CGRect(x: 48, y: 44, width: 480, height: 68), text: "你好，openSketch ✨", fontSize: 36)
+        let subtitle = DesignNode(name: "说明", kind: .text, frame: CGRect(x: 48, y: 116, width: 480, height: 56), text: "选择图层，调整颜色与形状。", fontSize: 22)
+        let card = DesignNode(name: "紫色卡片", kind: .rectangle, frame: CGRect(x: 48, y: 204, width: 286, height: 156), style: NodeStyle(fill: RGBAColor(red: 0.58, green: 0.36, blue: 0.9), cornerRadius: 24))
+        let circle = DesignNode(name: "暖色圆形", kind: .ellipse, frame: CGRect(x: 358, y: 214, width: 136, height: 136), style: NodeStyle(fill: RGBAColor(red: 1, green: 0.67, blue: 0.38)))
+        let frame = DesignNode(name: "初次设计", kind: .frame, frame: CGRect(x: 0, y: 0, width: 560, height: 408), clipsContent: true, children: [title, subtitle, card, circle])
+        return DesignDocument(name: "示例设计", pages: [DesignPage(name: "欢迎", nodes: [frame])])
+    }
+
 }

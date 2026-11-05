@@ -6,7 +6,7 @@ enum EditorError: LocalizedError { case invalid(String)
 }
 @MainActor enum Exporter {
     static func validate(_ bounds: CGRect) throws {
-        guard !bounds.isEmpty, !bounds.isInfinite, bounds.width.isFinite, bounds.height.isFinite, bounds.width <= 16384, bounds.height <= 16384, bounds.width * bounds.height <= 64_000_000 else { throw EditorError.invalid("导出尺寸过大：最大边长 16384，最多 6400 万像素。") }
+        guard !bounds.isEmpty, !bounds.isInfinite, bounds.width.isFinite, bounds.height.isFinite, bounds.width <= 16384, bounds.height <= 16384, ceil(bounds.width) * ceil(bounds.height) <= 64_000_000 else { throw EditorError.invalid("导出尺寸过大：最大边长 16384，最多 6400 万像素。") }
     }
     static func png(page: DesignPage, bounds: CGRect) throws -> Data {
         try validate(bounds)

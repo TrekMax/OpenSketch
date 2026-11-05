@@ -87,4 +87,55 @@ import OpenSketchCore
         #expect(throws: (any Error).self) { try SketchFileInspector.inspect(oversized) }
     }
 
+    @Test func pageUndoReconcilesActivePageBeforeInsertion() {
+        let s = EditorSession(); let firstPage = s.pageID
+        s.addPage(); s.undo()
+        #expect(s.pageID == firstPage)
+        s.beginGesture(); #expect(s.create(DesignNode(name: "新建图形", kind: .rectangle))); s.commitGesture()
+        #expect(s.page.nodes.count == 1)
+        s.undo(); #expect(s.page.nodes.isEmpty)
+        s.insert([DesignNode(name: "粘贴", kind: .rectangle)])
+        #expect(s.page.nodes.count == 1)
+        #expect(s.selected?.name == "粘贴")
+        s.undo(); s.redo()
+        #expect(s.document.pages.contains { $0.id == s.pageID })
+        #expect(s.page.nodes.count == 1)
+    }
+    @Test func copiedCompositionKeepsOrderedSiblings() {
+        let nodes = ["底层", "中层", "顶层"].map { DesignNode(name: $0, kind: .rectangle) }
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: nodes)]))
+        s.selection = [nodes[2].id, nodes[0].id, nodes[1].id]
+        #expect(s.detachedSelection().map(\.name) == ["底层", "中层", "顶层"])
+        s.duplicate()
+        #expect(s.page.nodes.suffix(3).map(\.name) == ["底层", "中层", "顶层"])
+    }
+    @Test func roundedPixelAllocationMustFitBudget() {
+        #expect(throws: (any Error).self) { try Exporter.validate(CGRect(x: 0, y: 0, width: 8000.01, height: 7999.99)) }
+    }
+
+    @Test func selectionGeometryRespectsHiddenClippedAndStrokedNodes() throws {
+        let child = DesignNode(kind: .rectangle, frame: CGRect(x: 80, y: 10, width: 40, height: 30), style: NodeStyle(fill: .white, stroke: .black, strokeWidth: 10))
+        var parent = DesignNode(kind: .frame, frame: CGRect(x: 0, y: 0, width: 100, height: 100), clipsContent: true, children: [child])
+        let geometry = try #require(CanvasRenderer.selectionGeometry(id: child.id, page: DesignPage(nodes: [parent])))
+        #expect(geometry.localBounds == CGRect(x: -5, y: -5, width: 50, height: 40))
+        #expect(geometry.visibleBounds == CGRect(x: 75, y: 5, width: 25, height: 40))
+        parent.isVisible = false
+        #expect(CanvasRenderer.selectionGeometry(id: child.id, page: DesignPage(nodes: [parent])) == nil)
+    }
+
+    @Test func exampleIsOriginalEditableDocument() throws {
+        let document = EditorSession.exampleDocument()
+        let restored = try DocumentCodec.decode(DocumentCodec.encode(document))
+        #expect(restored.pages.count == 1)
+        #expect(restored.pages[0].nodes.first?.kind == .frame)
+        #expect(SceneGeometry.traversal(in: restored.pages[0]).contains { $0.kind == .text && $0.text.contains("你好") })
+    }
+    @Test func failedInsertionKeepsSelectionAndDocument() {
+        let s = EditorSession(); let node = DesignNode(kind: .rectangle)
+        s.insert([node]); let before = s.document; let selected = s.selection
+        s.insert([node])
+        #expect(s.document == before); #expect(s.selection == selected)
+        #expect(s.message.contains("无法插入"))
+    }
+
 }
