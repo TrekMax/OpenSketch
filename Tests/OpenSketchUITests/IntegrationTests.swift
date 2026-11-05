@@ -1,0 +1,90 @@
+import Testing
+import AppKit
+import OpenSketchCore
+@testable import OpenSketchUI
+
+@MainActor struct IntegrationTests {
+    @Test func cancelledMoveRestoresCleanSnapshot() {
+        let node = DesignNode(kind: .rectangle)
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        s.selection = [node.id]
+        s.beginGesture(); s.moveSelection(by: CGSize(width: 40, height: 20))
+        #expect(s.isDirty)
+        s.cancelGesture()
+        #expect(s.document.node(id: node.id)?.frame.origin == .zero)
+        #expect(!s.isDirty)
+        #expect(!s.history.canUndo)
+    }
+    @Test func parentAndChildMoveOnceAndUndoOnce() {
+        let child = DesignNode(kind: .rectangle, frame: CGRect(x: 10, y: 20, width: 30, height: 40))
+        let parent = DesignNode(kind: .frame, children: [child])
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [parent])]))
+        s.selection = [parent.id, child.id]
+        s.beginGesture(); s.moveSelection(by: CGSize(width: 50, height: 60)); s.commitGesture()
+        #expect(s.document.node(id: child.id)?.frame.origin == CGPoint(x: 10, y: 20))
+        #expect(s.document.node(id: parent.id)?.frame.origin == CGPoint(x: 50, y: 60))
+        s.undo(); #expect(!s.isDirty); #expect(!s.history.canUndo)
+    }
+    @Test func lockedAncestorBlocksMoveAndZeroDragKeepsClean() {
+        let child = DesignNode(kind: .rectangle)
+        let parent = DesignNode(kind: .frame, isLocked: true, children: [child])
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [parent])]))
+        s.selection = [child.id]; s.beginGesture(); s.moveSelection(by: CGSize(width: 5, height: 8)); s.commitGesture()
+        #expect(!s.isDirty)
+        s.beginGesture(); s.moveSelection(by: .zero); s.commitGesture(); #expect(!s.history.canUndo)
+    }
+    @Test func unicodeLayoutAndVectorExport() throws {
+        let node = DesignNode(kind: .text, frame: CGRect(x: 0, y: 0, width: 240, height: 80), text: "中文 👩🏽‍💻", fontName: "Missing-Font")
+        #expect(TextLayout.measure(node).height > 0)
+        let page = DesignPage(nodes: [node])
+        let png = try Exporter.png(page: page, bounds: CGRect(x: 0, y: 0, width: 240, height: 80))
+        let image = try #require(NSBitmapImageRep(data: png))
+        #expect(image.pixelsWide == 240)
+        let pdf = try Exporter.pdf(page: page, bounds: CGRect(x: 0, y: 0, width: 240, height: 80))
+        #expect(pdf.starts(with: Data("%PDF".utf8)))
+        #expect(throws: (any Error).self) { try Exporter.png(page: page, bounds: CGRect(x: 0, y: 0, width: 100000, height: 100000)) }
+    }
+    @Test func inspectionRejectsInvalidArchive() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sketch")
+        try Data("not zip".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(throws: (any Error).self) { try SketchFileInspector.inspect(url) }
+        #expect(try Data(contentsOf: url) == Data("not zip".utf8))
+    }
+    @Test func copiedNestedNodeRetainsWorldPosition() throws {
+        let child = DesignNode(kind: .rectangle, frame: CGRect(x: 10, y: 20, width: 30, height: 40))
+        let parent = DesignNode(kind: .frame, frame: CGRect(x: 100, y: 200, width: 200, height: 200), children: [child])
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [parent])]))
+        s.selection = [child.id]; s.duplicate()
+        let copy = try #require(s.selected)
+        #expect(copy.frame.origin == CGPoint(x: 130, y: 240))
+    }
+    @Test func groupOpacityCompositesOverlappingChildrenOnce() throws {
+        let red = NodeStyle(fill: RGBAColor(red: 1, green: 0, blue: 0))
+        let a = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 60, height: 40), style: red)
+        let b = DesignNode(kind: .rectangle, frame: CGRect(x: 30, y: 0, width: 60, height: 40), style: red)
+        let group = DesignNode(kind: .group, style: NodeStyle(opacity: 0.5), children: [a,b])
+        let data = try Exporter.png(page: DesignPage(nodes: [group]), bounds: CGRect(x: 0, y: 0, width: 100, height: 40))
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+        let outside = try #require(bitmap.colorAt(x: 10, y: 20))
+        let overlap = try #require(bitmap.colorAt(x: 40, y: 20))
+        #expect(abs(outside.alphaComponent - 0.5) < 0.02)
+        #expect(abs(overlap.alphaComponent - outside.alphaComponent) < 0.01)
+    }
+    @Test func actualZipMetadataSuccessAndOversizeRejection() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let meta = folder.appendingPathComponent("meta.json")
+        try Data(#"{"version":196,"appVersion":"2026.1","build":12,"compatibilityVersion":99}"#.utf8).write(to: meta)
+        func zip(_ name: String) throws -> URL {
+            let output = folder.appendingPathComponent(name + ".sketch")
+            let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/zip"); process.currentDirectoryURL = folder; process.arguments = ["-q",output.path,"meta.json"]; try process.run(); process.waitUntilExit(); #expect(process.terminationStatus == 0); return output
+        }
+        let valid = try zip("valid"); #expect(try SketchFileInspector.inspect(valid).version == 196)
+        try Data(repeating: 32, count: 1_048_577).write(to: meta)
+        let oversized = try zip("oversized")
+        #expect(throws: (any Error).self) { try SketchFileInspector.inspect(oversized) }
+    }
+
+}

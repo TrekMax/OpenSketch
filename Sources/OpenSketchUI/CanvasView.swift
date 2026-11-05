@@ -1,0 +1,110 @@
+import AppKit
+import SwiftUI
+import OpenSketchCore
+
+struct CanvasHost: NSViewRepresentable {
+    var session: EditorSession
+    func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
+    func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; view.needsDisplay = true }
+}
+@MainActor final class CanvasView: NSView, NSTextViewDelegate {
+    let session: EditorSession
+    var start: CGPoint?
+    var creation: UUID?
+    var resizing: UUID?
+    var editor: NSTextView?
+    var textID: UUID?
+    override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+    init(session: EditorSession) {
+        self.session = session; super.init(frame: .zero)
+        setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel("设计画布")
+        session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishGesture() }
+        session.fitCanvas = { [weak self] in self?.fit() }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+    func world(_ event: NSEvent) -> CGPoint { let p = convert(event.locationInWindow, from: nil); return CGPoint(x: (p.x-session.pan.x)/session.zoom, y: (p.y-session.pan.y)/session.zoom) }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let c = NSGraphicsContext.current?.cgContext else { return }
+        NSColor.windowBackgroundColor.setFill(); bounds.fill()
+        c.saveGState(); c.translateBy(x: session.pan.x, y: session.pan.y); c.scaleBy(x: session.zoom, y: session.zoom)
+        if session.grid && session.zoom >= 0.25 {
+            c.setFillColor(NSColor.separatorColor.cgColor)
+            let step: CGFloat = 20
+            let left = floor(-session.pan.x/session.zoom/step)*step, top = floor(-session.pan.y/session.zoom/step)*step
+            for x in stride(from: left, through: left+bounds.width/session.zoom+step, by: step) { for y in stride(from: top, through: top+bounds.height/session.zoom+step, by: step) { c.fill(CGRect(x: x, y: y, width: 1/session.zoom, height: 1/session.zoom)) } }
+        }
+        CanvasRenderer.draw(page: session.page, in: c)
+        for id in session.selection {
+            guard let n = session.document.node(id: id), let transform = SceneGeometry.worldTransform(id: id, in: session.page) else { continue }
+            c.saveGState(); c.concatenate(transform); c.setStrokeColor(NSColor.systemPurple.cgColor); c.setLineWidth(1.5/session.zoom)
+            let rect = CGRect(origin: .zero, size: n.frame.size); c.stroke(rect)
+            if n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
+            c.restoreGState()
+        }
+        c.restoreGState()
+        if session.page.nodes.isEmpty { ("开始设计\n选择上方工具，然后在画布中拖动" as NSString).draw(in: CGRect(x: 40, y: 35, width: 340, height: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.secondaryLabelColor]) }
+    }
+    override func mouseDown(with event: NSEvent) {
+        finishText(commit: true); window?.makeFirstResponder(self)
+        let p = world(event); start = p; creation = nil; resizing = nil
+        if session.tool == .select {
+            if let n = session.selected, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
+                let corner = CGPoint(x: n.frame.width, y: n.frame.height).applying(transform)
+                if hypot(corner.x-p.x, corner.y-p.y) < 10/session.zoom { resizing = n.id; session.beginGesture(); return }
+            }
+            if let hit = SceneGeometry.hitTest(p, in: session.page) {
+                if event.modifierFlags.contains(.shift) { if session.selection.contains(hit) { session.selection.remove(hit) } else { session.selection.insert(hit) } }
+                else if !session.selection.contains(hit) { session.selection = [hit] }
+                if event.clickCount == 2, session.document.node(id: hit)?.kind == .text { start = nil; beginText(hit); return }
+                if session.selected?.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
+            } else { session.selection = [] }
+            session.beginGesture()
+        } else {
+            session.beginGesture()
+            let kind = NodeKind(rawValue: session.tool.rawValue) ?? .rectangle
+            let node = DesignNode(name: session.tool.title, kind: kind, frame: CGRect(x: p.x, y: p.y, width: kind == .text ? 240 : 120, height: kind == .text ? 80 : 100), text: kind == .text ? "输入文字" : "")
+            try? session.document.insertNode(node, into: session.pageID); creation = node.id; session.selection = [node.id]
+        }
+        needsDisplay = true
+    }
+    override func mouseDragged(with event: NSEvent) {
+        guard let start else { return }; let p = world(event)
+        if let id = creation { session.document.updateNode(id: id) { $0.frame = CGRect(x: min(start.x,p.x), y: min(start.y,p.y), width: max(1,abs(p.x-start.x)), height: max(1,abs(p.y-start.y))) } }
+        else if let id = resizing, let n = session.gestureStart?.node(id: id), let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
+            let local = p.applying(transform.inverted()); session.document.updateNode(id: id) { $0.frame.size = CGSize(width: max(1, local.x), height: max(1, local.y)); $0.frame.origin = n.frame.origin }
+        } else { session.moveSelection(by: CGSize(width: p.x-start.x, height: p.y-start.y)) }
+        needsDisplay = true
+    }
+    func finishGesture() { if start != nil { session.commitGesture() }; start = nil; creation = nil; resizing = nil }
+    override func mouseUp(with event: NSEvent) { let id = creation; finishGesture(); if let id, session.document.node(id: id)?.kind == .text { beginText(id) }; needsDisplay = true }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { finishText(commit: false); if start != nil { session.cancelGesture(); start = nil; creation = nil; resizing = nil }; needsDisplay = true; return }
+        if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
+        let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "t": .text]
+        if let tool = tools[event.charactersIgnoringModifiers ?? ""] { session.tool = tool } else { super.keyDown(with: event) }
+    }
+    override func scrollWheel(with event: NSEvent) {
+        finishText(commit: true)
+        if event.modifierFlags.contains(.command) { zoom(to: session.zoom * exp(-event.scrollingDeltaY/100), anchor: convert(event.locationInWindow, from: nil)) }
+        else { session.pan.x -= event.scrollingDeltaX; session.pan.y -= event.scrollingDeltaY }; needsDisplay = true
+    }
+    override func magnify(with event: NSEvent) { finishText(commit: true); zoom(to: session.zoom*(1+event.magnification), anchor: convert(event.locationInWindow, from: nil)) }
+    func zoom(to value: CGFloat, anchor: CGPoint) { let z = min(8,max(0.05,value)); let ratio = z/session.zoom; session.pan = CGPoint(x: anchor.x-(anchor.x-session.pan.x)*ratio, y: anchor.y-(anchor.y-session.pan.y)*ratio); session.zoom = z; needsDisplay = true }
+    func fit() { finishText(commit: true); let rect = CanvasRenderer.bounds(page: session.page); session.zoom = min(2,max(0.05,min((bounds.width-80)/rect.width,(bounds.height-80)/rect.height))); session.pan = CGPoint(x: bounds.midX-rect.midX*session.zoom,y: bounds.midY-rect.midY*session.zoom); needsDisplay = true }
+    func beginText(_ id: UUID) {
+        guard let n = session.document.node(id: id), session.editable(id) else { return }
+        guard n.rotation == 0, session.document.parentID(of: id) == nil else { session.message = "嵌套或旋转文字请在右侧检查器编辑内容"; return }
+        session.beginGesture(); textID = id
+        let view = NSTextView(frame: CGRect(x: n.frame.minX*session.zoom+session.pan.x, y: n.frame.minY*session.zoom+session.pan.y, width: max(80,n.frame.width*session.zoom), height: max(40,n.frame.height*session.zoom)))
+        view.isRichText = false; view.allowsUndo = true; view.textContainerInset = .zero; view.textContainer?.lineFragmentPadding = 0; view.delegate = self
+        view.string = n.text; view.typingAttributes = TextLayout.attributes(n); view.font = NSFont(name: n.fontName, size: n.fontSize*session.zoom) ?? .systemFont(ofSize: n.fontSize*session.zoom)
+        view.setAccessibilityIdentifier("editor.inlineText"); view.setAccessibilityLabel("编辑文字，Command Return 完成，Escape 取消")
+        addSubview(view); editor = view; window?.makeFirstResponder(view); view.selectAll(nil); session.message = "Command Return 完成文字编辑 · Escape 取消"
+    }
+    func finishText(commit: Bool) { guard let editor, let id = textID else { return }; if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() } else { session.cancelGesture() }; editor.removeFromSuperview(); self.editor = nil; textID = nil; window?.makeFirstResponder(self); needsDisplay = true }
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) { finishText(commit: false); return true }
+        if commandSelector == #selector(NSResponder.insertNewline(_:)), NSApp.currentEvent?.modifierFlags.contains(.command) == true { finishText(commit: true); return true }; return false
+    }
+}
