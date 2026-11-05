@@ -1,0 +1,77 @@
+{
+  "assessment_date": "2026-11-05",
+  "project": "openSketch",
+  "phase": "assessment_only",
+  "compositor": {
+    "commit": "f6cd2f05525e7ca61d680cd221a690b796ef21d2",
+    "branch": "feat/module-manager",
+    "working_tree_clean": true,
+    "license": "MIT",
+    "deployment_target": "26.0",
+    "swift_language_mode": "5.0"
+  },
+  "sketch": {
+    "path": "/Applications/Sketch.app",
+    "bundle_identifier": "com.bohemiancoding.sketch3",
+    "version": "2026.3.1",
+    "build": "234013",
+    "minimum_macos": "15.0.0"
+  },
+  "host": {
+    "architecture": "arm64",
+    "macos": "27.2",
+    "xcode": "27.1",
+    "xcode_build": "27A9275",
+    "swift_compiler": "6.4"
+  },
+  "fixture": {
+    "local_path": "research/local/sketch-evaluation-20261105.sketch",
+    "source": "New local document created in Sketch during this assessment; frame preset converted to an empty stack",
+    "size_bytes": 9838,
+    "sha256": "19f62988abd37dc93ab13ee9e92334df2c67661388a42a9d4e58e2aec62ee25c",
+    "archive_entries_normalized": [
+      "document.json",
+      "pages/<UUID>.json",
+      "user.json",
+      "meta.json",
+      "previews/preview.png"
+    ],
+    "metadata": {
+      "version": 196,
+      "appVersion": "2026.3.1",
+      "build": 234013,
+      "compatibilityVersion": 99
+    },
+    "observed_node_subset": {
+      "_class": "group",
+      "groupBehavior": 1,
+      "clippingBehavior": 1,
+      "horizontalSizing": 0,
+      "verticalSizing": 0,
+      "leftPadding": 0,
+      "rightPadding": 0,
+      "topPadding": 0,
+      "bottomPadding": 0,
+      "groupLayout": {
+        "_class": "MSImmutableFlexGroupLayout",
+        "flexDirection": 1,
+        "justifyContent": 1,
+        "alignItems": 0,
+        "allGuttersGap": 0,
+        "crossAxisGutterGap": 0,
+        "wrappingEnabled": false,
+        "bordersAffectLayout": false,
+        "alignContent": 0,
+        "stackingOrder": 0,
+        "version": 1
+      }
+    },
+    "child_count": 0
+  },
+  "verification_limits": [
+    "No openSketch application implementation or build",
+    "No Compositor build or tests rerun",
+    "One empty frame/stack sample only",
+    "No complex Sketch import/export round trip or performance validation"
+  ]
+}
