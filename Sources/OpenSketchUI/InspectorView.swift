@@ -17,16 +17,19 @@ struct InspectorView: View {
                     number("X", "x", node: n, get: { $0.frame.origin.x }, set: { $0.frame.origin.x = max(-1e9,min(1e9,$1)) })
                     number("Y", "y", node: n, get: { $0.frame.origin.y }, set: { $0.frame.origin.y = max(-1e9,min(1e9,$1)) })
                     if n.kind == .group {
+                        // Keep each read-only property in its own accessibility container.
                         LabeledContent("宽") { Text(n.frame.width, format: .number.precision(.fractionLength(0...2))) }
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel("宽")
                             .accessibilityValue(Text(n.frame.width, format: .number.precision(.fractionLength(0...2))))
                             .accessibilityIdentifier("inspector.width")
+                            .accessibilityElement(children: .contain)
                         LabeledContent("高") { Text(n.frame.height, format: .number.precision(.fractionLength(0...2))) }
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel("高")
                             .accessibilityValue(Text(n.frame.height, format: .number.precision(.fractionLength(0...2))))
                             .accessibilityIdentifier("inspector.height")
+                            .accessibilityElement(children: .contain)
                         Text("编组尺寸只读").font(.caption).foregroundStyle(.secondary)
                     } else {
                         number("宽", "width", node: n, get: { $0.frame.width }, set: { $0.frame.size.width = max(1,min(1e7,$1)) })
