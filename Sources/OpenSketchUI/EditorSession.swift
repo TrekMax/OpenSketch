@@ -24,6 +24,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var needsInitialFit = false
     var fitCanvas: (() -> Void)?
     var zoomCanvas: ((CGFloat) -> Void)?
+    var setCanvasZoom: ((CGFloat) -> Void)?
     init(document: DesignDocument = .blank()) {
         self.document = document; history = DocumentHistory(document: document); pageID = document.pages[0].id
     }
@@ -100,6 +101,19 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         let cloned = nodes.map { $0.cloned() }
         let probe = DesignDocument(pages: [DesignPage(nodes: cloned)])
         guard (try? DocumentCodec.encode(probe)) != nil else { message = "剪贴板内容无效"; return }; insert(cloned)
+    }
+    func selectPage(_ id: UUID) {
+        guard document.pages.contains(where: { $0.id == id }), id != pageID else { return }
+        finishInput?()
+        pageID = id
+        selection = []
+    }
+    func setZoom(_ value: CGFloat) {
+        guard value.isFinite else { return }
+        finishInput?()
+        let value = min(8, max(0.05, value))
+        if let setCanvasZoom { setCanvasZoom(value) }
+        else { zoom = value }
     }
     func addPage() { finishInput?(); let p = DesignPage(name: "页面 \(document.pages.count + 1)"); change { $0.pages.append(p) }; pageID = p.id; selection = [] }
     func replace(_ d: DesignDocument, url: URL? = nil) { finishInput?(); document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }

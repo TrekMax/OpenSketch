@@ -8,7 +8,18 @@ struct LayersSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
-            Picker("当前页面", selection: Binding(get: { session.pageID }, set: { session.finishInput?(); session.pageID = $0; session.selection = [] })) { ForEach(session.document.pages) { Text($0.name).tag($0.id) } }.labelsHidden().accessibilityIdentifier("page.selector")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(session.document.pages) { page in
+                            pageRow(page).id(page.id)
+                        }
+                    }
+                }
+                .frame(height: min(140, CGFloat(session.document.pages.count) * 28))
+                .accessibilityIdentifier("page.list")
+                .onChange(of: session.pageID) { _, id in proxy.scrollTo(id) }
+            }
             EditorDivider(); Text("图层").font(.headline)
             ScrollView {
                 VStack(spacing: 4) {
@@ -19,9 +30,24 @@ struct LayersSidebar: View {
             }
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
-            HStack { Button("复制图层") { session.duplicate() }.disabled(session.roots.isEmpty).accessibilityIdentifier("layer.duplicate"); Button("删除") { session.deleteSelection() }.disabled(session.roots.isEmpty).accessibilityIdentifier("layer.delete") }
         }.padding(12)
     }
+    private func pageRow(_ page: DesignPage) -> some View {
+        let selected = session.pageID == page.id
+        return Button { session.selectPage(page.id) } label: {
+            Text(page.name).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 7)
+                .frame(height: 28)
+                .foregroundStyle(selected ? EditorPalette.selectionForeground(colorScheme) : .primary)
+                .background(selected ? EditorPalette.selection(colorScheme) : .clear,
+                            in: RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("page.row.\(page.id)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     private func layerRow(_ row: LayerTreeRow) -> some View {
         let node = row.node
         let selected = session.selection.contains(node.id)

@@ -58,4 +58,24 @@ extension EditorSession {
     func contextMenuSelection(for id: UUID) -> Set<UUID> {
         selection.contains(id) ? selection : [id]
     }
+
+    func canEditContextLayers(for id: UUID) -> Bool {
+        let target = contextMenuSelection(for: id)
+        let pageIDs = Set(SceneGeometry.traversal(in: page).map(\.id))
+        return !target.isEmpty && target.isSubset(of: pageIDs) && target.allSatisfy(editable)
+    }
+
+    func duplicateContextLayers(for id: UUID) {
+        finishInput?()
+        guard canEditContextLayers(for: id) else { return }
+        selection = contextMenuSelection(for: id)
+        duplicate()
+    }
+
+    func deleteContextLayers(for id: UUID) {
+        finishInput?()
+        guard canEditContextLayers(for: id) else { return }
+        selection = contextMenuSelection(for: id)
+        deleteSelection()
+    }
 }

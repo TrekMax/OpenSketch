@@ -374,13 +374,14 @@ import OpenSketchCore
         #expect(first.session.page.nodes.count == 1)
         second.session.zoom = 4
         controller.selectDocument(first.id)
-        let sizeItem = try #require(controller.toolbar(toolbar, itemForItemIdentifier: .init("view.actualSize"), willBeInsertedIntoToolbar: true))
-        let sizeButton = try #require(sizeItem.view as? NSButton)
-        sizeButton.performClick(nil)
+        let sizeItem = try #require(controller.toolbar(toolbar, itemForItemIdentifier: .init("view.zoomSlider"), willBeInsertedIntoToolbar: true))
+        let host = try #require(sizeItem.view as? NSHostingView<ZoomControlView>)
+        #expect(host.rootView.workspace === controller.workspace)
+        controller.actualSize(nil)
         #expect(first.session.zoom == 1)
         #expect(second.session.zoom == 4)
         controller.selectDocument(second.id)
-        sizeButton.performClick(nil)
+        controller.actualSize(nil)
         #expect(second.session.zoom == 1)
     }
 

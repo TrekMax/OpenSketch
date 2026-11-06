@@ -48,6 +48,10 @@ struct CanvasHost: NSViewRepresentable {
             return candidate.canUndo
         }
         session.fitCanvas = { [weak self] in self?.fit() }
+        session.setCanvasZoom = { [weak self] value in
+            guard let self else { return }
+            self.zoom(to: value, anchor: CGPoint(x: self.bounds.midX, y: self.bounds.midY))
+        }
         session.zoomCanvas = { [weak self] factor in
             guard let self else { return }
             self.finishText(commit: true)

@@ -107,6 +107,13 @@ struct LayerCommandsMenu: View {
     }
 
     var body: some View {
+        Button("复制图层") { session.duplicateContextLayers(for: rowID) }
+            .disabled(!session.canEditContextLayers(for: rowID))
+            .accessibilityIdentifier("layer.duplicate")
+        Button("删除") { session.deleteContextLayers(for: rowID) }
+            .disabled(!session.canEditContextLayers(for: rowID))
+            .accessibilityIdentifier("layer.delete")
+        Divider()
         action(.group)
         action(.ungroup)
         Divider()

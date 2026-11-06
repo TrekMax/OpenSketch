@@ -44,7 +44,7 @@ import OpenSketchCore
     @objc func duplicate(_ sender: Any?) { session.finishInput?(); session.duplicate() }
     @objc func delete(_ sender: Any?) { session.deleteSelection() }
     @objc func fit(_ sender: Any?) { session.fitCanvas?() }
-    @objc func actualSize(_ sender: Any?) { session.finishInput?(); session.zoom = 1 }
+    @objc func actualSize(_ sender: Any?) { session.setZoom(1) }
     @objc func zoomIn(_ sender: Any?) { session.zoomCanvas?(1.25) }
     @objc func zoomOut(_ sender: Any?) { session.zoomCanvas?(0.8) }
     @objc func changeAppearance(_ sender: NSMenuItem) {
@@ -92,7 +92,7 @@ import OpenSketchCore
         return switch menuItem.action { case #selector(undo(_:)): activeTextEditor.map { $0.undoManager?.canUndo ?? false } ?? session.canUndo; case #selector(redo(_:)): activeTextEditor.map { $0.undoManager?.canRedo ?? false } ?? session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
     }
 
-    var documentTabsWidth: CGFloat { min(620, max(160, (window?.frame.width ?? 1280) - 520)) }
+    var documentTabsWidth: CGFloat { min(620, max(160, (window?.frame.width ?? 1280) - 630)) }
 
     func makeDocumentTabs() -> DocumentTabsView {
         DocumentTabsView(workspace: workspace, width: documentTabsWidth, select: { [weak self] id in
@@ -108,7 +108,7 @@ import OpenSketchCore
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.fit"), .init("view.actualSize"), .init("view.zoomIn"), .init("view.zoomOut")]
+        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.fit"), .init("view.zoomSlider"), .init("view.zoomIn"), .init("view.zoomOut")]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -132,9 +132,11 @@ import OpenSketchCore
         case "view.fit":
             item.label = "适合"; item.toolTip = "画布适合窗口（⌘1）"
             item.action = #selector(fit(_:))
-        case "view.actualSize":
-            item.label = "100%"; item.toolTip = "实际大小（⌘0）"
-            item.action = #selector(actualSize(_:))
+        case "view.zoomSlider":
+            item.label = "缩放"; item.toolTip = "画布缩放"
+            let host = NSHostingView(rootView: ZoomControlView(workspace: workspace))
+            host.frame = CGRect(x: 0, y: 0, width: 160, height: 32)
+            item.view = host
         case "view.zoomIn":
             item.label = "放大"; item.toolTip = "放大画布"
             item.image = NSImage(systemSymbolName: "plus.magnifyingglass", accessibilityDescription: "放大")
