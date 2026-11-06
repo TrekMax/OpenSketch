@@ -5,7 +5,7 @@ import OpenSketchCore
 struct CanvasHost: NSViewRepresentable {
     var session: EditorSession
     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
-    func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; _ = session.needsInitialFit; view.needsDisplay = true; view.needsLayout = true }
+    func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; _ = session.snapping; _ = session.needsInitialFit; view.needsDisplay = true; view.needsLayout = true }
 }
 @MainActor final class InlineTextView: NSTextView {
     var commitEditing: (() -> Void)?
@@ -30,6 +30,8 @@ struct CanvasHost: NSViewRepresentable {
     var resizing: UUID?
     var editor: NSTextView?
     var textID: UUID?
+    var precision: PrecisionInput?
+    var guides: [SnapGuide] = []
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
@@ -37,7 +39,7 @@ struct CanvasHost: NSViewRepresentable {
         // Keep artwork, selection overlays and the inline editor inside the viewport.
         clipsToBounds = true
         setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel("设计画布")
-        session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishGesture() }
+        session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishPrecision(); self?.finishGesture() }
         session.fitCanvas = { [weak self] in self?.fit() }
         session.zoomCanvas = { [weak self] factor in
             guard let self else { return }
@@ -53,6 +55,17 @@ struct CanvasHost: NSViewRepresentable {
         session.needsInitialFit = false
         fit()
     }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        if let window {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowResignedKey(_:)),
+                                                   name: NSWindow.didResignKeyNotification, object: window)
+        } else {
+            session.finishInput?()
+        }
+    }
+    @objc private func windowResignedKey(_ notification: Notification) { session.finishInput?() }
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
@@ -76,11 +89,12 @@ struct CanvasHost: NSViewRepresentable {
             if n.kind != .group && n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
             c.restoreGState()
         }
+        drawPrecision(in: c)
         c.restoreGState()
         if session.page.nodes.isEmpty { ("开始设计\n选择上方工具，然后在画布中拖动" as NSString).draw(in: CGRect(x: 40, y: 35, width: 340, height: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.secondaryLabelColor]) }
     }
     override func mouseDown(with event: NSEvent) {
-        finishText(commit: true); window?.makeFirstResponder(self)
+        session.finishInput?(); window?.makeFirstResponder(self)
         let p = world(event); start = p; creation = nil; creationTool = nil; resizing = nil
         if session.tool == .select {
             if let n = session.selected, n.kind != .group, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
@@ -96,7 +110,10 @@ struct CanvasHost: NSViewRepresentable {
                     start = nil; beginText(hit); return
                 }
                 if let selected = session.selected, selected.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
-            } else { session.selection = [] }
+            } else {
+                beginMarquee(at: p, extending: event.modifierFlags.contains(.shift))
+                start = nil; needsDisplay = true; return
+            }
             session.beginGesture()
         } else {
             session.beginGesture()
@@ -107,11 +124,13 @@ struct CanvasHost: NSViewRepresentable {
         needsDisplay = true
     }
     override func mouseDragged(with event: NSEvent) {
-        guard let start else { return }; let p = world(event)
+        let p = world(event)
+        if updateMarquee(to: p) { return }
+        guard let start else { return }
         if let id = creation { session.document.updateNode(id: id) { $0.frame = CGRect(x: min(start.x,p.x), y: min(start.y,p.y), width: max(1,abs(p.x-start.x)), height: max(1,abs(p.y-start.y))) } }
         else if let id = resizing, let n = session.gestureStart?.node(id: id), let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
             let local = p.applying(transform.inverted()); session.document.updateNode(id: id) { $0.frame.size = CGSize(width: max(1, local.x), height: max(1, local.y)); $0.frame.origin = n.frame.origin }
-        } else { session.moveSelection(by: CGSize(width: p.x-start.x, height: p.y-start.y)) }
+        } else { moveSnapping(to: p, from: start, event: event) }
         needsDisplay = true
     }
     private func finishCreation(tool: EditorTool?) {
@@ -120,6 +139,7 @@ struct CanvasHost: NSViewRepresentable {
     func finishGesture(beginTextEditing: Bool = false) {
         let id = creation, tool = creationTool
         if start != nil { session.commitGesture() }
+        guides = []
         start = nil; creation = nil; creationTool = nil; resizing = nil
         if beginTextEditing, let id, session.document.node(id: id)?.kind == .text {
             beginText(id)
@@ -127,28 +147,41 @@ struct CanvasHost: NSViewRepresentable {
         }
         finishCreation(tool: tool)
     }
-    override func mouseUp(with event: NSEvent) { finishGesture(beginTextEditing: true); needsDisplay = true }
+    override func mouseUp(with event: NSEvent) { finishPrecision(); finishGesture(beginTextEditing: true); needsDisplay = true }
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 {
             finishText(commit: false)
+            finishPrecision(cancel: true)
             if start != nil {
                 session.cancelGesture(); start = nil; creation = nil; resizing = nil
                 finishCreation(tool: creationTool); creationTool = nil
             }
-            needsDisplay = true; return
+            guides = []; needsDisplay = true; return
         }
+        if nudge(with: event) { return }
+        if precision != nil { session.finishInput?() }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
         let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "t": .text]
         if let tool = tools[event.charactersIgnoringModifiers ?? ""] { session.tool = tool } else { super.keyDown(with: event) }
     }
+    override func keyUp(with event: NSEvent) {
+        if releaseNudge(event.keyCode) { return }
+        super.keyUp(with: event)
+    }
+    override func resignFirstResponder() -> Bool {
+        // beginText already owns the shared history when AppKit resigns Canvas.
+        finishPrecision()
+        if textID == nil { finishGesture() }
+        return super.resignFirstResponder()
+    }
     override func scrollWheel(with event: NSEvent) {
-        finishText(commit: true)
+        session.finishInput?()
         if event.modifierFlags.contains(.command) { zoom(to: session.zoom * exp(-event.scrollingDeltaY/100), anchor: convert(event.locationInWindow, from: nil)) }
         else { session.pan.x -= event.scrollingDeltaX; session.pan.y -= event.scrollingDeltaY }; needsDisplay = true
     }
-    override func magnify(with event: NSEvent) { finishText(commit: true); zoom(to: session.zoom*(1+event.magnification), anchor: convert(event.locationInWindow, from: nil)) }
-    func zoom(to value: CGFloat, anchor: CGPoint) { let z = min(8,max(0.05,value)); let ratio = z/session.zoom; session.pan = CGPoint(x: anchor.x-(anchor.x-session.pan.x)*ratio, y: anchor.y-(anchor.y-session.pan.y)*ratio); session.zoom = z; needsDisplay = true }
-    func fit() { finishText(commit: true); let rect = CanvasRenderer.bounds(page: session.page); session.zoom = min(2,max(0.05,min((bounds.width-80)/rect.width,(bounds.height-80)/rect.height))); session.pan = CGPoint(x: bounds.midX-rect.midX*session.zoom,y: bounds.midY-rect.midY*session.zoom); needsDisplay = true }
+    override func magnify(with event: NSEvent) { session.finishInput?(); zoom(to: session.zoom*(1+event.magnification), anchor: convert(event.locationInWindow, from: nil)) }
+    func zoom(to value: CGFloat, anchor: CGPoint) { session.finishInput?(); let z = min(8,max(0.05,value)); let ratio = z/session.zoom; session.pan = CGPoint(x: anchor.x-(anchor.x-session.pan.x)*ratio, y: anchor.y-(anchor.y-session.pan.y)*ratio); session.zoom = z; needsDisplay = true }
+    func fit() { session.finishInput?(); let rect = CanvasRenderer.bounds(page: session.page); session.zoom = min(2,max(0.05,min((bounds.width-80)/rect.width,(bounds.height-80)/rect.height))); session.pan = CGPoint(x: bounds.midX-rect.midX*session.zoom,y: bounds.midY-rect.midY*session.zoom); needsDisplay = true }
     func beginText(_ id: UUID) {
         guard let n = session.document.node(id: id), session.editable(id) else { return }
         guard n.rotation == 0, session.document.parentID(of: id) == nil else { session.message = "嵌套或旋转文字请在右侧检查器编辑内容"; return }
@@ -164,7 +197,7 @@ struct CanvasHost: NSViewRepresentable {
         guard let editor, let id = textID else { return }
         if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() }
         else { session.cancelGesture() }
-        editor.removeFromSuperview(); self.editor = nil; textID = nil
+        self.editor = nil; textID = nil; editor.removeFromSuperview()
         finishCreation(tool: textCreationTool); textCreationTool = nil
         window?.makeFirstResponder(self); needsDisplay = true
     }

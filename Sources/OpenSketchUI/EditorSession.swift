@@ -15,6 +15,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var zoom: CGFloat = 1
     var pan = CGPoint(x: 60, y: 60)
     var grid = true
+    var snapping = true
     var message = "拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / T 文字"
     var url: URL?
     var gestureStart: DesignDocument?
@@ -45,13 +46,18 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     func beginGesture() { gestureStart = document; history.begin(document: document) }
     func commitGesture() { history.commit(document: document); gestureStart = nil }
     func cancelGesture() { if let old = history.cancel() { document = old }; gestureStart = nil }
-    func moveSelection(by delta: CGSize) {
-        guard let start = gestureStart else { return }
-        for id in roots {
-            guard let original = start.node(id: id) else { continue }
-            let inverse = start.parentID(of: id).flatMap { SceneGeometry.worldTransform(id: $0, in: page)?.inverted() } ?? .identity
-            let a = CGPoint.zero.applying(inverse), b = CGPoint(x: delta.width, y: delta.height).applying(inverse)
-            document.updateNode(id: id) { $0.frame.origin = CGPoint(x: original.frame.minX + b.x-a.x, y: original.frame.minY + b.y-a.y) }
+    @discardableResult func moveSelection(by delta: CGSize) -> Bool {
+        guard let start = gestureStart else { return false }
+        do {
+            document = try CanvasEditing.translating(start, pageID: pageID, selection: selection, by: delta)
+            return true
+        } catch {
+            switch error as? LayerEditError {
+            case .invalidGeometry: message = "无法移动图层：位移或图层坐标无效或超出范围"
+            case .lockedOrHidden: message = "无法移动图层：所选图层或其祖先已锁定或隐藏"
+            default: message = "无法移动图层：选择无效，请重新选择图层"
+            }
+            return false
         }
     }
     func undo() { finishInput?(); if let d = history.undo(current: document) { document = d }; reconcilePage() }
@@ -94,7 +100,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         guard (try? DocumentCodec.encode(probe)) != nil else { message = "剪贴板内容无效"; return }; insert(cloned)
     }
     func addPage() { finishInput?(); let p = DesignPage(name: "页面 \(document.pages.count + 1)"); change { $0.pages.append(p) }; pageID = p.id; selection = [] }
-    func replace(_ d: DesignDocument, url: URL? = nil) { document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
+    func replace(_ d: DesignDocument, url: URL? = nil) { finishInput?(); document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
     static func exampleDocument() -> DesignDocument {
         let title = DesignNode(name: "问候", kind: .text, frame: CGRect(x: 48, y: 44, width: 480, height: 68), text: "你好，openSketch ✨", fontSize: 36)
         let subtitle = DesignNode(name: "说明", kind: .text, frame: CGRect(x: 48, y: 116, width: 480, height: 56), text: "选择图层，调整颜色与形状。", fontSize: 22)

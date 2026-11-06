@@ -38,7 +38,7 @@ import OpenSketchCore
     @objc func undo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.undo() } else { session.undo() } }
     @objc func redo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.redo() } else { session.redo() } }
     @objc func cut(_ sender: Any?) { session.finishInput?(); session.copy(); session.deleteSelection() }
-    public override func selectAll(_ sender: Any?) { session.selection = Set(SceneGeometry.traversal(in: session.page).filter { session.editable($0.id) }.map(\.id)) }
+    public override func selectAll(_ sender: Any?) { session.finishInput?(); session.selection = Set(SceneGeometry.traversal(in: session.page).filter { session.editable($0.id) }.map(\.id)) }
     @objc func copy(_ sender: Any?) { session.finishInput?(); session.copy() }
     @objc func paste(_ sender: Any?) { session.finishInput?(); session.paste() }
     @objc func duplicate(_ sender: Any?) { session.finishInput?(); session.duplicate() }

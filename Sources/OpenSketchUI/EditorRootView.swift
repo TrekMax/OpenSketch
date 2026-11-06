@@ -45,6 +45,7 @@ private struct DocumentEditorView: View {
                 }
                 .frame(width: 150)
                 .accessibilityIdentifier("view.appearance")
+                Toggle("吸附", isOn: Binding(get: { session.snapping }, set: { session.finishInput?(); session.snapping = $0 })).accessibilityIdentifier("view.snapping")
                 Toggle("网格", isOn: $session.grid).accessibilityIdentifier("view.grid")
                 Text("\(Int(session.zoom*100))%").monospacedDigit().frame(width: 48)
             }.padding(8)
