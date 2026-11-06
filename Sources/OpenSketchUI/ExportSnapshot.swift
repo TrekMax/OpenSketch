@@ -98,6 +98,8 @@ struct ExportOptions: Equatable {
         let path: CGPath = switch node.kind {
         case .ellipse: CGPath(ellipseIn: rect, transform: nil)
         case .path: SceneGeometry.cgPath(for: node.path)
+        // TextLayout draws into a rectangular text box without applying corner radius.
+        case .text: CGPath(rect: rect, transform: nil)
         default: CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         }
         var paths: [CGPath] = []

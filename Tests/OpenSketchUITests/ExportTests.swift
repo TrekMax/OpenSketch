@@ -68,6 +68,25 @@ import OpenSketchCore
         #expect(throws: (any Error).self) { try ExportSnapshot.make(page: DesignPage(nodes: [frame]), selection: [child.id], scope: .selection) }
     }
 
+    @Test func clippedTextWithCornerRadiusExportsVisibleCornerGlyphs() throws {
+        // The text box's rounded surrogate misses this clip, but the H's left stem is visible.
+        let text = DesignNode(kind: .text, frame: CGRect(x: 0, y: 0, width: 100, height: 100), style: NodeStyle(fill: red, cornerRadius: 50), text: "H", fontName: "Helvetica", fontSize: 24)
+        let clipBounds = CGRect(x: 40, y: 60, width: 10, height: 20)
+        let frame = DesignNode(kind: .frame, frame: clipBounds, clipsContent: true, style: NodeStyle(fill: nil), children: [text])
+        let page = DesignPage(nodes: [frame])
+        let before = page
+        let reference = try #require(NSBitmapImageRep(data: Exporter.png(page: page, bounds: clipBounds)))
+        try expectColor(reference, x: 2, y: 12, red: 1, blue: 0)
+
+        let snapshot = try ExportSnapshot.make(page: page, selection: [text.id], scope: .selection)
+        #expect(snapshot.bounds == clipBounds)
+        let image = try png(snapshot)
+        #expect(image.pixelsWide == 10 && image.pixelsHigh == 20)
+        try expectColor(image, x: 2, y: 12, red: 1, blue: 0)
+        #expect(try #require(image.colorAt(x: 9, y: 1)).alphaComponent < 0.01)
+        #expect(page == before)
+    }
+
     @Test func groupExportUsesChildrenAndDeduplicatesParentChildSelection() throws {
         let a = DesignNode(kind: .rectangle, frame: CGRect(x: 20, y: 30, width: 20, height: 10), style: NodeStyle(fill: red))
         let b = DesignNode(kind: .rectangle, frame: CGRect(x: 60, y: 30, width: 10, height: 10), style: NodeStyle(fill: blue))
