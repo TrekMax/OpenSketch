@@ -243,6 +243,10 @@ import OpenSketchCore
         refresh(host)
         #expect(abs(current.doubleValue) < 0.0001)
         #expect(menu.title == "100%")
+        second.setZoom(0.298)
+        refresh(host)
+        #expect(menu.title == "30%")
+        #expect(current.accessibilityValue() as? String == "30%")
         #expect(!first.isDirty && !second.isDirty)
         #expect(!first.history.canUndo && !second.history.canUndo)
     }
