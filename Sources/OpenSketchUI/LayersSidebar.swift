@@ -40,7 +40,7 @@ struct LayersSidebar: View {
                     .accessibilityValue(collapsed.contains(node.id) ? "已折叠" : "已展开")
                 } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
                 Image(systemName: node.kind.layerSymbol).frame(width: 14).accessibilityHidden(true)
-                Button { session.selectLayer(node.id, extending: NSEvent.modifierFlags.contains(.shift)) } label: {
+                Button { session.selectLayer(node.id, event: NSApp.currentEvent, fallbackModifiers: NSEvent.modifierFlags) } label: {
                     Text(node.name.isEmpty ? node.kind.layerTitle : node.name).lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

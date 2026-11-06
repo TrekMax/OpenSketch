@@ -18,8 +18,14 @@ struct InspectorView: View {
                     number("Y", "y", node: n, get: { $0.frame.origin.y }, set: { $0.frame.origin.y = max(-1e9,min(1e9,$1)) })
                     if n.kind == .group {
                         LabeledContent("宽") { Text(n.frame.width, format: .number.precision(.fractionLength(0...2))) }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("宽")
+                            .accessibilityValue(Text(n.frame.width, format: .number.precision(.fractionLength(0...2))))
                             .accessibilityIdentifier("inspector.width")
                         LabeledContent("高") { Text(n.frame.height, format: .number.precision(.fractionLength(0...2))) }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("高")
+                            .accessibilityValue(Text(n.frame.height, format: .number.precision(.fractionLength(0...2))))
                             .accessibilityIdentifier("inspector.height")
                         Text("编组尺寸只读").font(.caption).foregroundStyle(.secondary)
                     } else {

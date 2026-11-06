@@ -95,7 +95,7 @@ struct CanvasHost: NSViewRepresentable {
                     session.selection = [hit]
                     start = nil; beginText(hit); return
                 }
-                if session.selected?.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
+                if let selected = session.selected, selected.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
             } else { session.selection = [] }
             session.beginGesture()
         } else {

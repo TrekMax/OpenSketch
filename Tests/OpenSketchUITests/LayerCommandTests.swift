@@ -126,6 +126,48 @@ import OpenSketchCore
         #expect(session.selection == [ids[1]])
     }
 
+    @Test(arguments: [NSEvent.EventType.leftMouseDown, .leftMouseUp])
+    func sidebarShiftUsesMouseEventInsteadOfGlobalFallback(type: NSEvent.EventType) throws {
+        let session = makeSession()
+        let ids = session.page.nodes.map(\.id)
+        session.selection = [ids[0]]
+        let event = try #require(NSEvent.mouseEvent(with: type, location: .zero, modifierFlags: .shift,
+                                                  timestamp: 0, windowNumber: 0, context: nil,
+                                                  eventNumber: 1, clickCount: 1, pressure: 1))
+        session.selectLayer(ids[1], event: event, fallbackModifiers: [])
+        #expect(session.selection == [ids[0], ids[1]])
+        session.selectLayer(ids[0], event: event, fallbackModifiers: [])
+        #expect(session.selection == [ids[1]])
+        #expect(!session.history.canUndo)
+    }
+
+    @Test func sidebarUnmodifiedMouseEventOverridesShiftFallback() throws {
+        let session = makeSession()
+        let ids = session.page.nodes.map(\.id)
+        session.selection = [ids[0]]
+        let event = try #require(NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: [],
+                                                  timestamp: 0, windowNumber: 0, context: nil,
+                                                  eventNumber: 1, clickCount: 1, pressure: 1))
+        session.selectLayer(ids[1], event: event, fallbackModifiers: .shift)
+        #expect(session.selection == [ids[1]])
+    }
+
+    @Test func sidebarKeyboardAndEventlessActionsKeepSelectionSemantics() throws {
+        let session = makeSession()
+        let ids = session.page.nodes.map(\.id)
+        session.selection = [ids[0]]
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .shift,
+                                                timestamp: 0, windowNumber: 0, context: nil,
+                                                characters: " ", charactersIgnoringModifiers: " ",
+                                                isARepeat: false, keyCode: 49))
+        session.selectLayer(ids[1], event: event, fallbackModifiers: [])
+        #expect(session.selection == [ids[0], ids[1]])
+        session.selectLayer(ids[2], event: nil, fallbackModifiers: [])
+        #expect(session.selection == [ids[2]])
+        session.selectLayer(ids[1], event: nil, fallbackModifiers: .shift)
+        #expect(session.selection == [ids[1], ids[2]])
+    }
+
     @Test func nativeLayerMenuRoutesToTheCurrentDocumentAndExposesShortcuts() throws {
         let app = NSApplication.shared
         let oldMenu = app.mainMenu, oldResponder = app.nextResponder
@@ -210,6 +252,21 @@ import OpenSketchCore
         fixture.canvas.mouseDown(with: event)
         #expect(session.selection == [direct ? leaf.id : outer.id])
         fixture.canvas.mouseUp(with: event)
+    }
+
+    @Test func canvasMultiSelectionDoesNotReportRotationForUnrotatedLayers() throws {
+        let session = makeSession()
+        let ids = session.page.nodes.map(\.id)
+        session.selection = [ids[0]]
+        session.message = "准备选择"
+        let fixture = makeCanvas(session)
+        defer { fixture.window.close() }
+        let point = CGPoint(x: 120, y: 150)
+        fixture.canvas.mouseDown(with: try mouse(.leftMouseDown, at: point, canvas: fixture.canvas, modifiers: .shift))
+        fixture.canvas.mouseUp(with: try mouse(.leftMouseUp, at: point, canvas: fixture.canvas, modifiers: .shift))
+        #expect(session.selection == [ids[0], ids[2]])
+        #expect(session.message == "准备选择")
+        #expect(!session.history.canUndo)
     }
 
     @Test func groupedTextDoubleClickSelectsTextForInspectorFallback() throws {

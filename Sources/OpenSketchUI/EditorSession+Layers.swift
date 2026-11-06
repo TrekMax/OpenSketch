@@ -42,6 +42,11 @@ extension EditorSession {
         return target
     }
 
+    func selectLayer(_ id: UUID, event: NSEvent?, fallbackModifiers: NSEvent.ModifierFlags) {
+        let modifiers = event?.modifierFlags ?? fallbackModifiers
+        selectLayer(id, extending: modifiers.contains(.shift))
+    }
+
     func selectLayer(_ id: UUID, extending: Bool) {
         finishInput?()
         if extending {
