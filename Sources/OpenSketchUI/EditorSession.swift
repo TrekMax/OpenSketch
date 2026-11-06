@@ -10,7 +10,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var document: DesignDocument
     var history: DocumentHistory
     var pageID: UUID {
-        willSet { if newValue != pageID { finishInspectorInput() } }
+        willSet { if newValue != pageID { sidebarLayerDrag = nil; finishInspectorInput() } }
         didSet { if oldValue != pageID { selectedPageIDs = [pageID] } }
     }
     private(set) var selectedPageIDs: Set<UUID>
@@ -28,10 +28,11 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     @ObservationIgnored var finishInspectorText: (() -> Void)?
     var inspectorEdit: InspectorNumberEdit?
     var sidebarRename: SidebarRenameEdit?
+    var sidebarLayerDrag: SidebarLayerDrag?
     @ObservationIgnored var sidebarRenameText: (() -> String?)?
     /// Canvas keeps ownership of its callback; callers finish all input owners.
     var finishInput: (() -> Void)? {
-        get { { [weak self] in self?.finishSidebarRename(); self?.finishInspectorInput(); self?.canvasFinishInput?() } }
+        get { { [weak self] in self?.sidebarLayerDrag = nil; self?.finishSidebarRename(); self?.finishInspectorInput(); self?.canvasFinishInput?() } }
         set { canvasFinishInput = newValue }
     }
     var canUndoPendingNudge: (() -> Bool)?

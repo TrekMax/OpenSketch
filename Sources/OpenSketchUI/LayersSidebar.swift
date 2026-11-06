@@ -5,6 +5,7 @@ struct LayersSidebar: View {
     @Bindable var session: EditorSession
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsed: Set<UUID> = []
+    @State private var dropTarget: LayerDropDestination?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
@@ -23,15 +24,26 @@ struct LayersSidebar: View {
             EditorDivider(); Text("图层").font(.headline)
             ScrollView {
                 VStack(spacing: 4) {
-                    ForEach(LayerTreeRow.rows(in: session.page, collapsed: collapsed)) { row in
-                        layerRow(row)
+                    let rows = LayerTreeRow.rows(in: session.page, collapsed: collapsed)
+                    let marker = LayerTreeRow.belowInsertionMarker(for: dropTarget, in: rows)
+                    ForEach(rows) { row in
+                        layerRow(row, belowMarker: marker)
                     }
+                    Label("移到页面根层级", systemImage: "arrow.turn.up.left")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 32).contentShape(Rectangle())
+                        .background(dropTarget == .pageEnd ? EditorPalette.selection(colorScheme) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 5))
+                        .help("拖到此处移出画板或编组，并放到图层列表底部")
+                        .accessibilityIdentifier("layer.drop.pageEnd")
+                        .onDrop(of: [SidebarLayerDrag.typeIdentifier], delegate: dropDelegate(node: nil))
                 }
             }
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
         }.padding(12)
-        .onDisappear { session.finishSidebarRename() }
+        .onDisappear { session.finishSidebarRename(); session.sidebarLayerDrag = nil; dropTarget = nil }
+        .onChange(of: session.sidebarLayerDrag?.id) { _, _ in dropTarget = nil }
     }
     private func pageRow(_ page: DesignPage) -> some View {
         let selected = session.selectedPageIDs.contains(page.id)
@@ -64,7 +76,7 @@ struct LayersSidebar: View {
         }
     }
 
-    private func layerRow(_ row: LayerTreeRow) -> some View {
+    private func layerRow(_ row: LayerTreeRow, belowMarker: (rowID: UUID, depth: Int)?) -> some View {
         let node = row.node
         let selected = session.selection.contains(node.id)
         return HStack(spacing: 4) {
@@ -109,6 +121,7 @@ struct LayersSidebar: View {
         .buttonStyle(.borderless)
         .foregroundStyle(selected && colorScheme == .light ? .white : .primary)
         .tint(selected && colorScheme == .light ? .white : .primary)
+        .frame(height: LayerTreeDropDelegate.rowHeight - 14)
         .padding(7)
         .background {
             // Fill row padding, indentation and icon gaps without intercepting
@@ -120,6 +133,17 @@ struct LayersSidebar: View {
             .accessibilityHidden(true)
         }
         .background(selected ? EditorPalette.layerSelection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
+        .overlay {
+            if dropTarget == .inside(node.id) {
+                RoundedRectangle(cornerRadius: 5).stroke(Color(nsColor: EditorPalette.accent), lineWidth: 2).allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .top) { insertionLine(visible: dropTarget == .above(node.id), depth: row.depth) }
+        .overlay(alignment: .bottom) {
+            insertionLine(visible: belowMarker?.rowID == node.id, depth: belowMarker?.depth ?? row.depth)
+        }
+        .modifier(LayerTreeDragSource(session: session, node: node))
+        .onDrop(of: [SidebarLayerDrag.typeIdentifier], delegate: dropDelegate(node: node))
         .accessibilityElement(children: .contain)
         .contextMenu {
             LayerCommandsMenu(session: session, rowID: node.id) {
@@ -128,6 +152,16 @@ struct LayersSidebar: View {
         }
     }
 
+    private func dropDelegate(node: DesignNode?) -> LayerTreeDropDelegate {
+        LayerTreeDropDelegate(session: session, node: node, target: $dropTarget) { collapsed.remove($0) }
+    }
+
+    @ViewBuilder private func insertionLine(visible: Bool, depth: Int) -> some View {
+        if visible {
+            Rectangle().fill(Color(nsColor: EditorPalette.accent)).frame(height: 2)
+                .padding(.leading, CGFloat(depth) * 14).allowsHitTesting(false)
+        }
+    }
 }
 
 /// UI display order reverses each sibling list, keeping parents before descendants.
@@ -135,6 +169,14 @@ struct LayerTreeRow: Identifiable {
     let node: DesignNode
     let depth: Int
     var id: UUID { node.id }
+
+    static func belowInsertionMarker(for destination: LayerDropDestination?, in rows: [Self]) -> (rowID: UUID, depth: Int)? {
+        guard case .below(let id) = destination, let index = rows.firstIndex(where: { $0.id == id }) else { return nil }
+        let depth = rows[index].depth
+        var last = index
+        while last + 1 < rows.count && rows[last + 1].depth > depth { last += 1 }
+        return (rows[last].id, depth)
+    }
 
     static func rows(in page: DesignPage, collapsed: Set<UUID> = []) -> [Self] {
         var result: [Self] = []
