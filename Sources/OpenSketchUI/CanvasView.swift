@@ -223,11 +223,14 @@ struct CanvasHost: NSViewRepresentable {
     }
     func finishText(commit: Bool) {
         guard let editor, let id = textID else { return }
+        let shouldRestoreCanvasFocus = window?.firstResponder === editor
         if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() }
         else { session.cancelGesture() }
         self.editor = nil; textID = nil; editor.removeFromSuperview()
         finishCreation(tool: textCreationTool); textCreationTool = nil
-        window?.makeFirstResponder(self); needsDisplay = true
+        // Another control may already own focus when it asks Canvas to commit.
+        if shouldRestoreCanvasFocus { window?.makeFirstResponder(self) }
+        needsDisplay = true
     }
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) { finishText(commit: false); return true }

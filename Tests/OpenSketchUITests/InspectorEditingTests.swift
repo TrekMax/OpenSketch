@@ -138,6 +138,76 @@ import OpenSketchCore
         s.undo(); #expect(s.document.node(id: id)?.text == "")
     }
 
+    @Test func canvasTextHandoffKeepsNumericTypingFocusedAndCommitsSeparateUndo() throws {
+        let (s, canvas, control, window) = try canvasTextHandoffFixture()
+        defer { window.close() }
+        let id = try #require(s.selection.first)
+        #expect(window.firstResponder === canvas.editor)
+        control.field.selectText(nil)
+        let editor = try #require(control.field.currentEditor() as? NSTextView)
+        editor.insertText("5", replacementRange: NSRange(location: 0, length: 0))
+        try #require(window.firstResponder === editor)
+        editor.insertText("55", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        #expect(canvas.editor == nil)
+        #expect(s.document.node(id: id)?.text == "画布已编辑")
+        #expect(window.firstResponder === editor)
+        #expect(control.field.currentEditor() === editor)
+        editor.insertNewline(nil)
+        #expect(s.document.node(id: id)?.frame.minX == 55)
+        #expect(!s.history.isEditing)
+        #expect(s.inspectorEdit == nil)
+        s.undo()
+        #expect(s.document.node(id: id)?.frame.minX == 20)
+        #expect(s.document.node(id: id)?.text == "画布已编辑")
+        s.undo()
+        #expect(s.document.node(id: id)?.text == "")
+        #expect(!s.history.canUndo)
+    }
+
+    @Test func canvasTextHandoffKeepsScrubbingFocusedAndEscapeOnlyCancelsNumber() throws {
+        let (s, canvas, control, window) = try canvasTextHandoffFixture()
+        defer { window.close() }
+        let id = try #require(s.selection.first)
+        #expect(window.firstResponder === canvas.editor)
+        func mouse(_ type: NSEvent.EventType, _ x: CGFloat) throws -> NSEvent {
+            try #require(NSEvent.mouseEvent(with: type, location: control.scrubLabel.convert(CGPoint(x: x, y: 10), to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        }
+        control.scrubLabel.mouseDown(with: try mouse(.leftMouseDown, 5))
+        control.scrubLabel.mouseDragged(with: try mouse(.leftMouseDragged, 15))
+        #expect(s.document.node(id: id)?.frame.minX == 30)
+        #expect(window.firstResponder === control.scrubLabel)
+        control.scrubLabel.mouseDragged(with: try mouse(.leftMouseDragged, 30))
+        #expect(s.document.node(id: id)?.frame.minX == 45)
+        #expect(canvas.editor == nil)
+        #expect(s.document.node(id: id)?.text == "画布已编辑")
+        let escape = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}", isARepeat: false, keyCode: 53))
+        window.firstResponder?.keyDown(with: escape)
+        control.scrubLabel.mouseUp(with: try mouse(.leftMouseUp, 30))
+        #expect(s.document.node(id: id)?.frame.minX == 20)
+        #expect(s.document.node(id: id)?.text == "画布已编辑")
+        #expect(!s.history.isEditing)
+        #expect(s.inspectorEdit == nil)
+        s.undo()
+        #expect(s.document.node(id: id)?.text == "")
+        #expect(!s.history.canUndo)
+        s.redo()
+        #expect(s.document.node(id: id)?.text == "画布已编辑")
+        #expect(s.document.node(id: id)?.frame.minX == 20)
+    }
+
+    @Test(arguments: [false, true])
+    func canvasTextCompletionRestoresFocusWhenItsEditorStillOwnsIt(cancel: Bool) throws {
+        let (s, canvas, _, window) = try canvasTextHandoffFixture()
+        defer { window.close() }
+        let editor = try #require(canvas.editor)
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: cancel ? [] : .command, timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: cancel ? "\u{1B}" : "\r", charactersIgnoringModifiers: cancel ? "\u{1B}" : "\r", isARepeat: false, keyCode: cancel ? 53 : 36))
+        editor.keyDown(with: event)
+        #expect(window.firstResponder === canvas)
+        #expect(canvas.editor == nil)
+        #expect(s.selected?.text == (cancel ? "" : "画布已编辑"))
+        #expect(!s.history.isEditing)
+    }
+
     @Test func saveFinishesScrubBeforeEncodingAndRetainsUndo() throws {
         _ = NSApplication.shared
         let controller = AppController(), s = controller.session
@@ -377,9 +447,21 @@ import OpenSketchCore
         #expect(differingPixels == 0)
     }
 
-    private func nativeFixture() -> (EditorSession, InspectorNumberControl, NSWindow) {
+    private func canvasTextHandoffFixture() throws -> (EditorSession, CanvasView, InspectorNumberControl, NSWindow) {
+        let (s, control, window) = nativeFixture(kind: .text)
+        s.needsInitialFit = false
+        let canvas = CanvasView(session: s)
+        canvas.frame = CGRect(x: 130, y: 10, width: 160, height: 180)
+        window.contentView?.addSubview(canvas)
+        canvas.beginText(try #require(s.selection.first))
+        let editor = try #require(canvas.editor)
+        editor.insertText("画布已编辑", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        return (s, canvas, control, window)
+    }
+
+    private func nativeFixture(kind: NodeKind = .rectangle) -> (EditorSession, InspectorNumberControl, NSWindow) {
         _ = NSApplication.shared
-        let s = fixture()
+        let s = fixture(kind: kind)
         let control = InspectorNumberControl(frame: CGRect(x: 10, y: 10, width: 108, height: 26))
         control.configure(session: s, nodeID: s.selection.first!, property: .x)
         let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 300, height: 200), styleMask: [.borderless], backing: .buffered, defer: false)
