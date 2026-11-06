@@ -15,6 +15,35 @@ import OpenSketchCore
         #expect(!s.isDirty)
         #expect(!s.history.canUndo)
     }
+    @Test func canvasEscapeDuringMouseDragRestoresCleanSnapshotAfterMouseUp() throws {
+        _ = NSApplication.shared
+        let node = DesignNode(kind: .rectangle, frame: CGRect(x: 20, y: 20, width: 100, height: 80))
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        session.pan = .zero
+        let canvas = CanvasView(session: session)
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = canvas
+        #expect(window.makeFirstResponder(canvas))
+        func mouse(_ type: NSEvent.EventType, at point: CGPoint) throws -> NSEvent {
+            try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        }
+        canvas.mouseDown(with: try mouse(.leftMouseDown, at: CGPoint(x: 40, y: 40)))
+        canvas.mouseDragged(with: try mouse(.leftMouseDragged, at: CGPoint(x: 80, y: 65)))
+        #expect(session.document.node(id: node.id)?.frame.origin == CGPoint(x: 60, y: 45))
+        #expect(session.isDirty)
+        #expect(session.history.isEditing)
+        canvas.keyDown(with: try keyEvent(code: 53, characters: "\u{1b}"))
+        #expect(session.document.node(id: node.id)?.frame == node.frame)
+        #expect(!session.isDirty)
+        #expect(!session.history.isEditing)
+        #expect(canvas.start == nil)
+        canvas.mouseUp(with: try mouse(.leftMouseUp, at: CGPoint(x: 80, y: 65)))
+        #expect(session.document.node(id: node.id)?.frame == node.frame)
+        #expect(!session.isDirty)
+        #expect(!session.history.canUndo)
+        #expect(!session.history.canRedo)
+    }
     @Test func parentAndChildMoveOnceAndUndoOnce() {
         let child = DesignNode(kind: .rectangle, frame: CGRect(x: 10, y: 20, width: 30, height: 40))
         let parent = DesignNode(kind: .frame, children: [child])
