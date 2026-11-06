@@ -5,7 +5,6 @@ struct LayersSidebar: View {
     @Bindable var session: EditorSession
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsed: Set<UUID> = []
-    @State private var renameRequest: SidebarRenameRequest?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
@@ -32,26 +31,28 @@ struct LayersSidebar: View {
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
         }.padding(12)
-        .sheet(item: $renameRequest) { request in
-            SidebarRenameSheet(session: session, request: request)
-        }
+        .onDisappear { session.finishSidebarRename() }
     }
     private func pageRow(_ page: DesignPage) -> some View {
         let selected = session.pageID == page.id
-        return Button { session.selectPage(page.id) } label: {
-            Text(page.name).lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 7)
-                .frame(height: 28)
-                .foregroundStyle(selected ? EditorPalette.selectionForeground(colorScheme) : .primary)
-                .background(selected ? EditorPalette.selection(colorScheme) : .clear,
-                            in: RoundedRectangle(cornerRadius: 5))
+        return Group {
+            if let edit = session.sidebarRename, edit.request.target == .page(page.id) {
+                SidebarRenameField(session: session, request: edit.request)
+                    .id(edit.request.id).frame(height: 22)
+            } else {
+                Button { session.selectPage(page.id) } label: {
+                    Text(page.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("page.row.\(page.id)")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("page.row.\(page.id)")
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .padding(.horizontal, 7).frame(height: 28)
+        .foregroundStyle(selected ? EditorPalette.selectionForeground(colorScheme) : .primary)
+        .background(selected ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .contextMenu {
-            Button("重命名…") { renameRequest = session.beginSidebarRename(.page(page.id)) }
+            Button("重命名") { session.startSidebarRename(.page(page.id)) }
                 .accessibilityIdentifier("page.rename")
         }
     }
@@ -63,6 +64,7 @@ struct LayersSidebar: View {
             HStack(spacing: 4) {
                 if node.kind == .group || node.kind == .frame || !node.children.isEmpty {
                     Button {
+                        session.finishInput?()
                         if collapsed.contains(node.id) { collapsed.remove(node.id) }
                         else { collapsed.insert(node.id) }
                     } label: {
@@ -74,13 +76,19 @@ struct LayersSidebar: View {
                     .accessibilityValue(collapsed.contains(node.id) ? "已折叠" : "已展开")
                 } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
                 Image(systemName: node.kind.layerSymbol).frame(width: 14).accessibilityHidden(true)
-                Button { session.selectLayer(node.id, event: NSApp.currentEvent, fallbackModifiers: NSEvent.modifierFlags) } label: {
-                    Text(node.name.isEmpty ? node.kind.layerTitle : node.name).lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if let edit = session.sidebarRename,
+                   edit.request.target == .layer(pageID: session.pageID, nodeID: node.id) {
+                    SidebarRenameField(session: session, request: edit.request)
+                        .id(edit.request.id).frame(height: 18)
+                } else {
+                    Button { session.selectLayer(node.id, event: NSApp.currentEvent, fallbackModifiers: NSEvent.modifierFlags) } label: {
+                        Text(node.name.isEmpty ? node.kind.layerTitle : node.name).lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("layer.\(node.id)")
+                    .accessibilityValue("层级 \(row.depth + 1)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("layer.\(node.id)")
-                .accessibilityValue("层级 \(row.depth + 1)")
             }.padding(.leading, CGFloat(row.depth) * 14)
             Button { session.change { $0.updateNode(id: node.id) { $0.isVisible.toggle() } } } label: {
                 Image(systemName: node.isVisible ? "eye" : "eye.slash")
@@ -97,7 +105,7 @@ struct LayersSidebar: View {
         .accessibilityElement(children: .contain)
         .contextMenu {
             LayerCommandsMenu(session: session, rowID: node.id) {
-                renameRequest = session.beginSidebarRename(.layer(pageID: session.pageID, nodeID: node.id))
+                session.startSidebarRename(.layer(pageID: session.pageID, nodeID: node.id))
             }
         }
     }

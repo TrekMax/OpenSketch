@@ -1,7 +1,7 @@
 import Foundation
 import OpenSketchCore
 
-enum SidebarRenameTarget {
+enum SidebarRenameTarget: Equatable {
     case page(UUID)
     case layer(pageID: UUID, nodeID: UUID)
 
@@ -25,7 +25,33 @@ struct SidebarRenameRequest: Identifiable {
     let originalName: String
 }
 
+struct SidebarRenameEdit {
+    let request: SidebarRenameRequest
+    var name: String
+}
+
 extension EditorSession {
+    func startSidebarRename(_ target: SidebarRenameTarget) {
+        guard let request = beginSidebarRename(target) else { return }
+        sidebarRename = SidebarRenameEdit(request: request, name: request.originalName)
+    }
+
+    func updateSidebarRename(_ token: UUID, name: String) {
+        guard sidebarRename?.request.id == token else { return }
+        sidebarRename?.name = name
+    }
+
+    func finishSidebarRename(token: UUID? = nil, cancel: Bool = false) {
+        guard let edit = sidebarRename, token == nil || token == edit.request.id else { return }
+        let name = cancel ? edit.name : (sidebarRenameText?() ?? edit.name)
+        // Clear ownership before committing: commit also finishes other input owners.
+        sidebarRename = nil
+        sidebarRenameText = nil
+        guard !cancel else { return }
+        do { try commitSidebarRename(edit.request, name: name) }
+        catch { message = error.localizedDescription }
+    }
+
     func beginSidebarRename(_ target: SidebarRenameTarget) -> SidebarRenameRequest? {
         finishInput?()
         guard let name = target.name(in: document) else { return nil }

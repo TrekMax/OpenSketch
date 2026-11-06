@@ -141,4 +141,107 @@ import OpenSketchCore
         #expect(session.document.node(id: node.id)?.text == "输入中的文字")
         session.undo(); #expect(session.document.node(id: node.id) == node)
     }
+
+    @Test func inlineDraftCommitsAtInputBoundaryAndIgnoresLateEvents() throws {
+        let session = EditorSession(), original = session.document
+        session.startSidebarRename(.page(session.pageID))
+        let token = try #require(session.sidebarRename?.request.id)
+        session.updateSidebarRename(token, name: "行内页面")
+        #expect(session.document == original && !session.isDirty)
+        session.finishInput?()
+        #expect(session.sidebarRename == nil && session.page.name == "行内页面")
+        session.updateSidebarRename(token, name: "迟到输入")
+        session.finishSidebarRename(token: token, cancel: true)
+        #expect(session.page.name == "行内页面")
+        session.undo(); #expect(session.document == original && !session.history.canUndo)
+    }
+
+    @Test func inlineCancelAndInvalidCommitPreserveOriginalAndRedo() throws {
+        let session = EditorSession()
+        let request = try #require(session.beginSidebarRename(.page(session.pageID)))
+        try session.commitSidebarRename(request, name: "暂名"); session.undo()
+        let original = session.document
+        session.startSidebarRename(.page(session.pageID))
+        let token = try #require(session.sidebarRename?.request.id)
+        session.updateSidebarRename(token, name: "不保存")
+        session.finishSidebarRename(token: token, cancel: true)
+        #expect(session.document == original && session.history.canRedo)
+        session.startSidebarRename(.page(session.pageID))
+        session.updateSidebarRename(try #require(session.sidebarRename?.request.id), name: "  ")
+        session.finishInput?()
+        #expect(session.document == original && session.history.canRedo && session.sidebarRename == nil)
+        #expect(session.message.contains("名称不能为空"))
+    }
+
+    @Test(arguments: [false, true]) func nativeInlineFieldEnterAndEscape(cancel: Bool) throws {
+        _ = NSApplication.shared
+        let session = EditorSession(), original = session.document
+        session.startSidebarRename(.page(session.pageID))
+        let request = try #require(session.sidebarRename?.request)
+        let field = NativeSidebarRenameField(session: session, request: request)
+        let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 220, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = field
+        defer { window.close() }
+        field.selectText(nil)
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        editor.insertText("原行新名", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        #expect(session.document == original)
+        #expect(field.control(field, textView: editor, doCommandBy: NSSelectorFromString(cancel ? "cancelOperation:" : "insertNewline:")))
+        #expect(session.sidebarRename == nil)
+        #expect(session.page.name == (cancel ? "页面 1" : "原行新名"))
+        if cancel { #expect(!session.history.canUndo) }
+        else { session.undo(); #expect(session.document == original && !session.history.canUndo) }
+    }
+
+    @Test func staleNativeFieldCannotReplaceCurrentDraftReader() throws {
+        _ = NSApplication.shared
+        let session = EditorSession()
+        session.startSidebarRename(.page(session.pageID))
+        let stale = try #require(session.sidebarRename?.request)
+        session.finishSidebarRename(cancel: true)
+        session.startSidebarRename(.page(session.pageID))
+        let current = NativeSidebarRenameField(session: session, request: try #require(session.sidebarRename?.request))
+        current.stringValue = "当前名称"
+        let late = NativeSidebarRenameField(session: session, request: stale)
+        late.stringValue = "过期名称"
+        session.finishInput?()
+        #expect(session.page.name == "当前名称")
+    }
+
+    @Test func nativeInlineFieldInputBoundaryReadsLatestEditorValue() throws {
+        _ = NSApplication.shared
+        let session = EditorSession()
+        session.startSidebarRename(.page(session.pageID))
+        let request = try #require(session.sidebarRename?.request)
+        let field = NativeSidebarRenameField(session: session, request: request)
+        let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 220, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = field
+        defer { window.close() }
+        field.selectText(nil)
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        // Exercise an input boundary before a text-change notification arrives.
+        editor.string = "最新编辑内容"
+        session.finishInput?()
+        #expect(session.page.name == "最新编辑内容" && session.sidebarRename == nil)
+        session.undo(); #expect(session.page.name == "页面 1" && !session.history.canUndo)
+    }
+
+    @Test func nativeInlineFieldFocusLossCommitsExactlyOnce() throws {
+        _ = NSApplication.shared
+        let session = EditorSession()
+        session.startSidebarRename(.page(session.pageID))
+        let request = try #require(session.sidebarRename?.request)
+        let field = NativeSidebarRenameField(session: session, request: request)
+        let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 220, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = field
+        defer { window.close() }
+        field.selectText(nil)
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        editor.insertText("失焦提交", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        window.makeFirstResponder(nil)
+        #expect(session.page.name == "失焦提交" && session.sidebarRename == nil)
+        field.controlTextDidEndEditing(Notification(name: NSControl.textDidEndEditingNotification, object: field))
+        session.undo(); #expect(session.page.name == "页面 1" && !session.history.canUndo)
+    }
 }

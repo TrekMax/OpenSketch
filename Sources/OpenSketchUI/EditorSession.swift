@@ -23,9 +23,11 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     @ObservationIgnored private var canvasFinishInput: (() -> Void)?
     @ObservationIgnored var finishInspectorText: (() -> Void)?
     var inspectorEdit: InspectorNumberEdit?
-    /// Canvas keeps ownership of its callback; callers always finish both input owners.
+    var sidebarRename: SidebarRenameEdit?
+    @ObservationIgnored var sidebarRenameText: (() -> String?)?
+    /// Canvas keeps ownership of its callback; callers finish all input owners.
     var finishInput: (() -> Void)? {
-        get { { [weak self] in self?.finishInspectorInput(); self?.canvasFinishInput?() } }
+        get { { [weak self] in self?.finishSidebarRename(); self?.finishInspectorInput(); self?.canvasFinishInput?() } }
         set { canvasFinishInput = newValue }
     }
     var canUndoPendingNudge: (() -> Bool)?
