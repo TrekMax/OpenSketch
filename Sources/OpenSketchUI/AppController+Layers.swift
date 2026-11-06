@@ -3,8 +3,9 @@ import OpenSketchCore
 
 extension AppController {
     func makeLayerMenu() -> NSMenu {
-        let menu = LayerMenu(title: "图层")
-        menu.controller = self
+        let menu = LayerMenu(title: "图层", allowsShortcut: { [weak self] in
+            self?.activeTextEditor == nil
+        })
         func add(_ command: LayerCommand, to menu: NSMenu, key: String = "", shift: Bool = false) {
             let item = NSMenuItem(title: command.title, action: #selector(performLayerCommand(_:)), keyEquivalent: key)
             item.target = self
@@ -41,10 +42,21 @@ extension AppController {
 /// AppKit can consume a disabled item's key equivalent. Yield before matching
 /// whenever a native text editor owns focus, so text shortcuts keep their meaning.
 @MainActor private final class LayerMenu: NSMenu {
-    weak var controller: AppController?
+    nonisolated let allowsShortcut: @MainActor @Sendable () -> Bool
 
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard controller?.activeTextEditor == nil else { return false }
+    init(title: String, allowsShortcut: @escaping @MainActor @Sendable () -> Bool) {
+        self.allowsShortcut = allowsShortcut
+        super.init(title: title)
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+
+    nonisolated override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // AppKit routes key events on the main thread, but imports this override
+        // as nonisolated. Check only the Sendable UI query at that boundary;
+        // neither this menu nor its NSEvent crosses actor isolation.
+        let query = allowsShortcut
+        guard MainActor.assumeIsolated({ query() }) else { return false }
         return super.performKeyEquivalent(with: event)
     }
 }
