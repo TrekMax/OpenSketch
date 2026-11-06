@@ -30,6 +30,12 @@ enum EditorPalette {
             : NSColor(srgbRed: 220/255, green: 220/255, blue: 225/255, alpha: 1)
     }
 
+    static let inspectorControl = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(srgbRed: 0.20, green: 0.20, blue: 0.20, alpha: 1)
+            : NSColor(srgbRed: 244/255, green: 244/255, blue: 246/255, alpha: 1)
+    }
+
     static let lightControl = Color(.sRGB, red: 244/255, green: 244/255, blue: 246/255, opacity: 1)
 
     static func selection(_ scheme: ColorScheme) -> Color {

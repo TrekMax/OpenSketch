@@ -9,8 +9,8 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
 @MainActor @Observable final class EditorSession {
     var document: DesignDocument
     var history: DocumentHistory
-    var pageID: UUID
-    var selection: Set<UUID> = []
+    var pageID: UUID { willSet { if newValue != pageID { finishInspectorInput() } } }
+    var selection: Set<UUID> = [] { willSet { if newValue != selection { finishInspectorInput() } } }
     var tool: EditorTool = .select
     var zoom: CGFloat = 1
     var pan = CGPoint(x: 60, y: 60)
@@ -19,7 +19,14 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var message = "拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / T 文字"
     var url: URL?
     var gestureStart: DesignDocument?
-    var finishInput: (() -> Void)?
+    @ObservationIgnored private var canvasFinishInput: (() -> Void)?
+    @ObservationIgnored var finishInspectorText: (() -> Void)?
+    var inspectorEdit: InspectorNumberEdit?
+    /// Canvas keeps ownership of its callback; callers always finish both input owners.
+    var finishInput: (() -> Void)? {
+        get { { [weak self] in self?.finishInspectorInput(); self?.canvasFinishInput?() } }
+        set { canvasFinishInput = newValue }
+    }
     var canUndoPendingNudge: (() -> Bool)?
     var needsInitialFit = false
     var fitCanvas: (() -> Void)?
@@ -30,7 +37,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     }
     var page: DesignPage { document.pages.first { $0.id == pageID } ?? document.pages[0] }
     var isDirty: Bool { history.isDirty(document) }
-    var canUndo: Bool { history.canUndo || (canUndoPendingNudge?() ?? false) }
+    var canUndo: Bool { history.canUndo || canUndoInspectorEdit || (canUndoPendingNudge?() ?? false) }
     var selected: DesignNode? { selection.count == 1 ? selection.first.flatMap { document.node(id: $0) } : nil }
     func editable(_ id: UUID) -> Bool {
         var next: UUID? = id

@@ -71,21 +71,21 @@ struct LayerActionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                action(.group)
-                action(.ungroup)
+            HStack(spacing: 8) {
+                action(.group, iconOnly: true)
+                action(.ungroup, iconOnly: true)
+                Spacer(minLength: 8)
                 Menu("层级") {
                     ForEach(LayerCommand.ordering, id: \.identifier) { action($0) }
-                }.help("调整图层前后顺序")
+                }.fixedSize().help("调整图层前后顺序")
             }
-            Text("对齐与分布").font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 4) {
-                ForEach(LayerCommand.alignment, id: \.identifier) { action($0, iconOnly: true) }
-            }
-            HStack(spacing: 4) {
-                ForEach(LayerCommand.distribution, id: \.identifier) { action($0, iconOnly: true) }
-            }
+            HStack(spacing: 3) {
+                ForEach(LayerCommand.alignment + LayerCommand.distribution, id: \.identifier) {
+                    action($0, iconOnly: true)
+                }
+            }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
+        .font(.system(size: 11)).controlSize(.small)
     }
 }
 
