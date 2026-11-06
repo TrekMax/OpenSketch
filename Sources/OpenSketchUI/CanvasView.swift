@@ -32,6 +32,7 @@ struct CanvasHost: NSViewRepresentable {
     var textID: UUID?
     var precision: PrecisionInput?
     var guides: [SnapGuide] = []
+    var containerDrag: ContainerDrag?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
@@ -59,6 +60,12 @@ struct CanvasHost: NSViewRepresentable {
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+    override func setFrameSize(_ newSize: NSSize) {
+        if newSize != frame.size, start != nil, creation == nil, resizing == nil, precision == nil {
+            finishGesture()
+        }
+        super.setFrameSize(newSize)
+    }
     override func layout() {
         super.layout()
         // A new document's representable is created before it has a viewport.
@@ -68,15 +75,16 @@ struct CanvasHost: NSViewRepresentable {
     }
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
-        if let window {
-            NotificationCenter.default.addObserver(self, selector: #selector(windowResignedKey(_:)),
-                                                   name: NSWindow.didResignKeyNotification, object: window)
-        } else {
-            session.finishInput?()
+        for name in [NSWindow.didResignKeyNotification, NSWindow.willCloseNotification] {
+            NotificationCenter.default.removeObserver(self, name: name, object: nil)
+            if let window {
+                NotificationCenter.default.addObserver(self, selector: #selector(windowInputEnded(_:)),
+                                                       name: name, object: window)
+            }
         }
+        if window == nil { session.finishInput?() }
     }
-    @objc private func windowResignedKey(_ notification: Notification) { session.finishInput?() }
+    @objc private func windowInputEnded(_ notification: Notification) { session.finishInput?() }
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
@@ -100,6 +108,7 @@ struct CanvasHost: NSViewRepresentable {
             if n.kind != .group && n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
             c.restoreGState()
         }
+        drawContainerDrag(in: c)
         drawPrecision(in: c)
         c.restoreGState()
         if session.page.nodes.isEmpty { ("开始设计\n选择上方工具，然后在画布中拖动" as NSString).draw(in: CGRect(x: 40, y: 35, width: 340, height: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.secondaryLabelColor]) }
@@ -141,7 +150,10 @@ struct CanvasHost: NSViewRepresentable {
         if let id = creation { session.document.updateNode(id: id) { $0.frame = CGRect(x: min(start.x,p.x), y: min(start.y,p.y), width: max(1,abs(p.x-start.x)), height: max(1,abs(p.y-start.y))) } }
         else if let id = resizing, let n = session.gestureStart?.node(id: id), let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
             let local = p.applying(transform.inverted()); session.document.updateNode(id: id) { $0.frame.size = CGSize(width: max(1, local.x), height: max(1, local.y)); $0.frame.origin = n.frame.origin }
-        } else { moveSnapping(to: p, from: start, event: event) }
+        } else {
+            let applied = moveSnapping(to: p, from: start, event: event)
+            updateContainerDrag(to: p, from: start, applied: applied)
+        }
         needsDisplay = true
     }
     private func finishCreation(tool: EditorTool?) {
@@ -151,6 +163,7 @@ struct CanvasHost: NSViewRepresentable {
         let id = creation, tool = creationTool
         if start != nil { session.commitGesture() }
         guides = []
+        clearContainerDrag()
         start = nil; creation = nil; creationTool = nil; resizing = nil
         if beginTextEditing, let id, session.document.node(id: id)?.kind == .text {
             beginText(id)
@@ -158,7 +171,10 @@ struct CanvasHost: NSViewRepresentable {
         }
         finishCreation(tool: tool)
     }
-    override func mouseUp(with event: NSEvent) { finishPrecision(); finishGesture(beginTextEditing: true); needsDisplay = true }
+    override func mouseUp(with event: NSEvent) {
+        finishContainerDrop()
+        finishPrecision(); finishGesture(beginTextEditing: true); needsDisplay = true
+    }
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 {
             finishText(commit: false)
@@ -167,6 +183,7 @@ struct CanvasHost: NSViewRepresentable {
                 session.cancelGesture(); start = nil; creation = nil; resizing = nil
                 finishCreation(tool: creationTool); creationTool = nil
             }
+            clearContainerDrag()
             guides = []; needsDisplay = true; return
         }
         if nudge(with: event) { return }

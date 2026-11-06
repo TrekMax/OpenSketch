@@ -81,13 +81,15 @@ extension CanvasView {
         return true
     }
 
-    func moveSnapping(to point: CGPoint, from origin: CGPoint, event: NSEvent) {
-        guard let page = session.gestureStart?.pages.first(where: { $0.id == session.pageID }) else { return }
+    func moveSnapping(to point: CGPoint, from origin: CGPoint, event: NSEvent) -> Bool {
+        guard let page = session.gestureStart?.pages.first(where: { $0.id == session.pageID }) else { return false }
         let raw = CGSize(width: point.x - origin.x, height: point.y - origin.y)
         let result = session.snapping && !event.modifierFlags.contains(.control)
             ? CanvasEditing.snapMovement(in: page, selection: session.selection, translation: raw, tolerance: 6 / session.zoom)
             : MovementSnap(translation: raw, guides: [])
-        guides = session.moveSelection(by: result.translation) ? result.guides : []
+        let applied = session.moveSelection(by: result.translation)
+        guides = applied ? result.guides : []
+        return applied
     }
 
     func drawPrecision(in context: CGContext) {
