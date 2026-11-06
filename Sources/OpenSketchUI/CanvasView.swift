@@ -91,7 +91,10 @@ struct CanvasHost: NSViewRepresentable {
                 let target = session.canvasSelectionTarget(hit, direct: event.modifierFlags.contains(.option))
                 if event.modifierFlags.contains(.shift) { if session.selection.contains(target) { session.selection.remove(target) } else { session.selection.insert(target) } }
                 else if !session.selection.contains(target) { session.selection = [target] }
-                if event.clickCount == 2, session.document.node(id: hit)?.kind == .text { start = nil; beginText(hit); return }
+                if event.clickCount == 2, session.document.node(id: hit)?.kind == .text {
+                    session.selection = [hit]
+                    start = nil; beginText(hit); return
+                }
                 if session.selected?.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
             } else { session.selection = [] }
             session.beginGesture()

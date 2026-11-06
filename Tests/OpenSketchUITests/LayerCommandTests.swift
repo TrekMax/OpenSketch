@@ -212,6 +212,32 @@ import OpenSketchCore
         fixture.canvas.mouseUp(with: event)
     }
 
+    @Test func groupedTextDoubleClickSelectsTextForInspectorFallback() throws {
+        let text = DesignNode(kind: .text, frame: CGRect(x: 10, y: 10, width: 100, height: 40), text: "检查器中的文字")
+        let group = DesignNode(kind: .group, frame: CGRect(x: 20, y: 20, width: 160, height: 100), children: [text])
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [group])]))
+        let original = session.document
+        let fixture = makeCanvas(session)
+        defer { fixture.window.close() }
+        let point = CGPoint(x: 50, y: 50)
+        fixture.canvas.mouseDown(with: try mouse(.leftMouseDown, at: point, canvas: fixture.canvas))
+        fixture.canvas.mouseUp(with: try mouse(.leftMouseUp, at: point, canvas: fixture.canvas))
+        #expect(session.selection == [group.id])
+
+        fixture.canvas.mouseDown(with: try mouse(.leftMouseDown, at: point, canvas: fixture.canvas, clickCount: 2))
+        fixture.canvas.mouseUp(with: try mouse(.leftMouseUp, at: point, canvas: fixture.canvas, clickCount: 2))
+
+        #expect(session.selection == [text.id])
+        #expect(session.selected?.kind == .text)
+        #expect(session.selected?.text == "检查器中的文字")
+        #expect(fixture.canvas.editor == nil)
+        #expect(fixture.canvas.textID == nil)
+        #expect(session.message.contains("检查器"))
+        #expect(session.document == original)
+        #expect(!session.history.canUndo)
+        #expect(!session.history.isEditing)
+    }
+
     @Test func frameChildrenRemainDirectlySelectableAndGroupsCannotResize() throws {
         let child = DesignNode(kind: .rectangle, frame: CGRect(x: 10, y: 10, width: 30, height: 30))
         let frame = DesignNode(kind: .frame, frame: CGRect(x: 20, y: 20, width: 100, height: 100), children: [child])
@@ -279,7 +305,7 @@ import OpenSketchCore
         return (canvas, window)
     }
 
-    private func mouse(_ type: NSEvent.EventType, at point: CGPoint, canvas: CanvasView, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
-        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: modifiers, timestamp: 0, windowNumber: canvas.window!.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    private func mouse(_ type: NSEvent.EventType, at point: CGPoint, canvas: CanvasView, modifiers: NSEvent.ModifierFlags = [], clickCount: Int = 1) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: modifiers, timestamp: 0, windowNumber: canvas.window!.windowNumber, context: nil, eventNumber: 1, clickCount: clickCount, pressure: 1))
     }
 }
