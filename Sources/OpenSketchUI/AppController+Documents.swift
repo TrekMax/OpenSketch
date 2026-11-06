@@ -135,35 +135,4 @@ extension AppController {
         document.session.url = url
         document.session.history.markSaved(document: document.session.document)
     }
-
-    @objc func exportPNG(_ sender: Any?) { export(pdf: false) }
-    @objc func exportPDF(_ sender: Any?) { export(pdf: true) }
-
-    func export(pdf: Bool, chooseDestination: (() -> URL?)? = nil) {
-        let document = workspace.current
-        finishDocumentInput()
-        let destination = chooseDestination ?? {
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [pdf ? .pdf : .png]
-            panel.nameFieldStringValue = pdf ? "设计.pdf" : "设计.png"
-            return panel.runModal() == .OK ? panel.url : nil
-        }
-        guard let url = destination() else { return }
-        let session = document.session
-        var page = session.page
-        var bounds = CanvasRenderer.bounds(page: page)
-        if let frame = session.selected, frame.kind == .frame {
-            var isolated = frame
-            isolated.frame.origin = .zero
-            isolated.rotation = 0
-            isolated.clipsContent = true
-            page.nodes = [isolated]
-            bounds = CGRect(origin: .zero, size: frame.frame.size)
-        }
-        do {
-            let data = try pdf ? Exporter.pdf(page: page, bounds: bounds) : Exporter.png(page: page, bounds: bounds)
-            try data.write(to: url, options: .atomic)
-            session.message = "已导出 \(url.lastPathComponent)"
-        } catch { self.error(error) }
-    }
 }

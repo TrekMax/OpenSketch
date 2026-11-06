@@ -11,6 +11,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var history: DocumentHistory
     var pageID: UUID { willSet { if newValue != pageID { finishInspectorInput() } } }
     var selection: Set<UUID> = [] { willSet { if newValue != selection { finishInspectorInput() } } }
+    var exportOptions = ExportOptions()
     var tool: EditorTool = .select
     var zoom: CGFloat = 1
     var pan = CGPoint(x: 60, y: 60)

@@ -4,9 +4,10 @@ import OpenSketchCore
 struct EditorRootView: View {
     @Bindable var workspace: DocumentWorkspace
     @Bindable var appearance: AppAppearance
+    var exportDocument: ((UUID) -> Void)? = nil
     var body: some View {
         let document = workspace.current
-        DocumentEditorView(session: document.session, appearance: appearance)
+        DocumentEditorView(session: document.session, appearance: appearance, export: exportDocument.map { action in { action(document.id) } })
             .id(document.id)
     }
 }
@@ -14,6 +15,7 @@ struct EditorRootView: View {
 private struct DocumentEditorView: View {
     @Bindable var session: EditorSession
     @Bindable var appearance: AppAppearance
+    var export: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(spacing: 0) {
@@ -35,7 +37,7 @@ private struct DocumentEditorView: View {
             .font(.system(size: 12))
             .frame(height: 42)
             EditorDivider()
-            HStack(spacing: 0) { LayersSidebar(session: session).frame(width: 220); EditorDivider(); CanvasHost(session: session).frame(maxWidth: .infinity, maxHeight: .infinity); EditorDivider(); InspectorView(session: session).frame(width: 260) }
+            HStack(spacing: 0) { LayersSidebar(session: session).frame(width: 220); EditorDivider(); CanvasHost(session: session).frame(maxWidth: .infinity, maxHeight: .infinity); EditorDivider(); InspectorView(session: session, export: export).frame(width: 260) }
             EditorDivider()
             HStack {
                 Text(session.message).font(.caption).foregroundStyle(.secondary).lineLimit(1)

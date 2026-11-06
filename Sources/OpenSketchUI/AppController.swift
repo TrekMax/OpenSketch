@@ -27,7 +27,7 @@ import OpenSketchCore
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
-        window.contentView = NSHostingView(rootView: EditorRootView(workspace: workspace, appearance: appearance)); window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        window.contentView = NSHostingView(rootView: EditorRootView(workspace: workspace, appearance: appearance, exportDocument: { [weak self] id in self?.export(documentID: id) })); window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         observeDocument()
     }
     func observeDocument() {
