@@ -63,6 +63,9 @@ import OpenSketchCore
         let app = menu("openSketch"); add(app,"退出 openSketch",#selector(NSApplication.terminate(_:)),"q",responder:true)
         let file = menu("文件"); add(file,"打开示例设计",#selector(openExample(_:))); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭标签页",#selector(closeCurrentDocument(_:)),"w")
         let edit = menu("编辑"); add(edit,"撤销",#selector(undo(_:)),"z"); add(edit,"重做",#selector(redo(_:)),"z",shift:true); add(edit,"剪切",#selector(NSText.cut(_:)),"x",responder:true); add(edit,"拷贝",#selector(copy(_:)),"c",responder:true); add(edit,"粘贴",#selector(paste(_:)),"v",responder:true); add(edit,"全选",#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,"复制图层",#selector(duplicate(_:)),"d"); add(edit,"删除图层",#selector(delete(_:)))
+        let layers = NSMenuItem(title: "图层", action: nil, keyEquivalent: "")
+        layers.submenu = makeLayerMenu()
+        bar.addItem(layers)
         let view = menu("视图"); add(view,"适合窗口",#selector(fit(_:)),"1"); add(view,"实际大小 100%",#selector(actualSize(_:)),"0")
         view.addItem(.separator())
         let appearanceItem = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
@@ -78,6 +81,10 @@ import OpenSketchCore
         NSApp.nextResponder = self
     }
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(performLayerCommand(_:)) {
+            guard activeTextEditor == nil, let command = menuItem.representedObject as? LayerCommand else { return false }
+            return session.canPerform(command)
+        }
         if menuItem.action == #selector(changeAppearance(_:)) {
             menuItem.state = (menuItem.representedObject as? String) == appearance.mode.rawValue ? .on : .off
             return true

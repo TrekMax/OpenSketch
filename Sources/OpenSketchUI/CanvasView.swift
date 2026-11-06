@@ -73,7 +73,7 @@ struct CanvasHost: NSViewRepresentable {
             guard let n = session.document.node(id: id), let geometry = CanvasRenderer.selectionGeometry(id: id, page: session.page) else { continue }
             c.saveGState(); for clip in geometry.clips { c.addPath(clip); c.clip() }; c.concatenate(geometry.transform); c.setStrokeColor(EditorPalette.accent.cgColor); c.setLineWidth(1.5/session.zoom)
             let rect = CGRect(origin: .zero, size: n.frame.size); c.stroke(geometry.localBounds)
-            if n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
+            if n.kind != .group && n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
             c.restoreGState()
         }
         c.restoreGState()
@@ -83,13 +83,14 @@ struct CanvasHost: NSViewRepresentable {
         finishText(commit: true); window?.makeFirstResponder(self)
         let p = world(event); start = p; creation = nil; creationTool = nil; resizing = nil
         if session.tool == .select {
-            if let n = session.selected, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
+            if let n = session.selected, n.kind != .group, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
                 let corner = CGPoint(x: n.frame.width, y: n.frame.height).applying(transform)
                 if hypot(corner.x-p.x, corner.y-p.y) < 10/session.zoom { resizing = n.id; session.beginGesture(); return }
             }
             if let hit = SceneGeometry.hitTest(p, in: session.page) {
-                if event.modifierFlags.contains(.shift) { if session.selection.contains(hit) { session.selection.remove(hit) } else { session.selection.insert(hit) } }
-                else if !session.selection.contains(hit) { session.selection = [hit] }
+                let target = session.canvasSelectionTarget(hit, direct: event.modifierFlags.contains(.option))
+                if event.modifierFlags.contains(.shift) { if session.selection.contains(target) { session.selection.remove(target) } else { session.selection.insert(target) } }
+                else if !session.selection.contains(target) { session.selection = [target] }
                 if event.clickCount == 2, session.document.node(id: hit)?.kind == .text { start = nil; beginText(hit); return }
                 if session.selected?.rotation != 0 { session.message = "旋转图层请通过检查器修改尺寸" }
             } else { session.selection = [] }

@@ -4,26 +4,106 @@ import OpenSketchCore
 struct LayersSidebar: View {
     @Bindable var session: EditorSession
     @Environment(\.colorScheme) private var colorScheme
+    @State private var collapsed: Set<UUID> = []
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
             Picker("当前页面", selection: Binding(get: { session.pageID }, set: { session.finishInput?(); session.pageID = $0; session.selection = [] })) { ForEach(session.document.pages) { Text($0.name).tag($0.id) } }.labelsHidden().accessibilityIdentifier("page.selector")
             EditorDivider(); Text("图层").font(.headline)
-            ScrollView { VStack(spacing: 4) { ForEach(Array(SceneGeometry.traversal(in: session.page).reversed())) { node in
-                HStack(spacing: 4) {
-                    Button { session.finishInput?(); if NSEvent.modifierFlags.contains(.shift) { session.selection.insert(node.id) } else { session.selection = [node.id] } } label: { Text(node.name.isEmpty ? node.kind.rawValue : node.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, session.document.parentID(of: node.id) == nil ? 0 : 12) }.buttonStyle(.plain).accessibilityIdentifier("layer.\(node.id)")
-                    Button { session.change { $0.updateNode(id: node.id) { $0.isVisible.toggle() } } } label: { Image(systemName: node.isVisible ? "eye" : "eye.slash") }.accessibilityLabel(node.isVisible ? "隐藏图层" : "显示图层").accessibilityIdentifier("layer.visibility.\(node.id)")
-                    Button { session.change { $0.updateNode(id: node.id) { $0.isLocked.toggle() } } } label: { Image(systemName: node.isLocked ? "lock.fill" : "lock.open") }.accessibilityLabel(node.isLocked ? "解锁图层" : "锁定图层").accessibilityIdentifier("layer.lock.\(node.id)")
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(LayerTreeRow.rows(in: session.page, collapsed: collapsed)) { row in
+                        layerRow(row)
+                    }
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(session.selection.contains(node.id) && colorScheme == .light ? .white : .primary)
-                .tint(session.selection.contains(node.id) && colorScheme == .light ? .white : .primary)
-                .padding(7)
-                .background(session.selection.contains(node.id) ? EditorPalette.layerSelection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
-            } } }
+            }
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
             HStack { Button("复制图层") { session.duplicate() }.disabled(session.roots.isEmpty).accessibilityIdentifier("layer.duplicate"); Button("删除") { session.deleteSelection() }.disabled(session.roots.isEmpty).accessibilityIdentifier("layer.delete") }
         }.padding(12)
+    }
+    private func layerRow(_ row: LayerTreeRow) -> some View {
+        let node = row.node
+        let selected = session.selection.contains(node.id)
+        return HStack(spacing: 4) {
+            HStack(spacing: 4) {
+                if node.kind == .group || node.kind == .frame || !node.children.isEmpty {
+                    Button {
+                        if collapsed.contains(node.id) { collapsed.remove(node.id) }
+                        else { collapsed.insert(node.id) }
+                    } label: {
+                        Image(systemName: collapsed.contains(node.id) ? "chevron.right" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold)).frame(width: 10)
+                    }
+                    .accessibilityLabel(collapsed.contains(node.id) ? "展开图层" : "折叠图层")
+                    .accessibilityIdentifier("layer.expand.\(node.id)")
+                    .accessibilityValue(collapsed.contains(node.id) ? "已折叠" : "已展开")
+                } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
+                Image(systemName: node.kind.layerSymbol).frame(width: 14).accessibilityHidden(true)
+                Button { session.selectLayer(node.id, extending: NSEvent.modifierFlags.contains(.shift)) } label: {
+                    Text(node.name.isEmpty ? node.kind.layerTitle : node.name).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("layer.\(node.id)")
+                .accessibilityValue("层级 \(row.depth + 1)")
+            }.padding(.leading, CGFloat(row.depth) * 14)
+            Button { session.change { $0.updateNode(id: node.id) { $0.isVisible.toggle() } } } label: {
+                Image(systemName: node.isVisible ? "eye" : "eye.slash")
+            }.accessibilityLabel(node.isVisible ? "隐藏图层" : "显示图层").accessibilityIdentifier("layer.visibility.\(node.id)")
+            Button { session.change { $0.updateNode(id: node.id) { $0.isLocked.toggle() } } } label: {
+                Image(systemName: node.isLocked ? "lock.fill" : "lock.open")
+            }.accessibilityLabel(node.isLocked ? "解锁图层" : "锁定图层").accessibilityIdentifier("layer.lock.\(node.id)")
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(selected && colorScheme == .light ? .white : .primary)
+        .tint(selected && colorScheme == .light ? .white : .primary)
+        .padding(7)
+        .background(selected ? EditorPalette.layerSelection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
+        .accessibilityElement(children: .contain)
+        .contextMenu { LayerCommandsMenu(session: session, rowID: node.id) }
+    }
+
+}
+
+/// UI display order reverses each sibling list, keeping parents before descendants.
+struct LayerTreeRow: Identifiable {
+    let node: DesignNode
+    let depth: Int
+    var id: UUID { node.id }
+
+    static func rows(in page: DesignPage, collapsed: Set<UUID> = []) -> [Self] {
+        var result: [Self] = []
+        func visit(_ nodes: [DesignNode], depth: Int) {
+            for node in nodes.reversed() {
+                result.append(Self(node: node, depth: depth))
+                if !collapsed.contains(node.id) { visit(node.children, depth: depth + 1) }
+            }
+        }
+        visit(page.nodes, depth: 0)
+        return result
+    }
+}
+
+private extension NodeKind {
+    var layerSymbol: String {
+        switch self {
+        case .group: "folder"
+        case .frame: "rectangle.dashed"
+        case .rectangle: "rectangle"
+        case .ellipse: "circle"
+        case .text: "textformat"
+        case .path: "point.topleft.down.curvedto.point.bottomright.up"
+        }
+    }
+    var layerTitle: String {
+        switch self {
+        case .group: "编组"
+        case .frame: "画板"
+        case .rectangle: "矩形"
+        case .ellipse: "椭圆"
+        case .text: "文字"
+        case .path: "路径"
+        }
     }
 }
