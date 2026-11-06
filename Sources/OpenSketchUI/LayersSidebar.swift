@@ -5,6 +5,7 @@ struct LayersSidebar: View {
     @Bindable var session: EditorSession
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsed: Set<UUID> = []
+    @State private var renameRequest: SidebarRenameRequest?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
@@ -31,6 +32,9 @@ struct LayersSidebar: View {
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
         }.padding(12)
+        .sheet(item: $renameRequest) { request in
+            SidebarRenameSheet(session: session, request: request)
+        }
     }
     private func pageRow(_ page: DesignPage) -> some View {
         let selected = session.pageID == page.id
@@ -46,6 +50,10 @@ struct LayersSidebar: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("page.row.\(page.id)")
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .contextMenu {
+            Button("重命名…") { renameRequest = session.beginSidebarRename(.page(page.id)) }
+                .accessibilityIdentifier("page.rename")
+        }
     }
 
     private func layerRow(_ row: LayerTreeRow) -> some View {
@@ -87,7 +95,11 @@ struct LayersSidebar: View {
         .padding(7)
         .background(selected ? EditorPalette.layerSelection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .accessibilityElement(children: .contain)
-        .contextMenu { LayerCommandsMenu(session: session, rowID: node.id) }
+        .contextMenu {
+            LayerCommandsMenu(session: session, rowID: node.id) {
+                renameRequest = session.beginSidebarRename(.layer(pageID: session.pageID, nodeID: node.id))
+            }
+        }
     }
 
 }

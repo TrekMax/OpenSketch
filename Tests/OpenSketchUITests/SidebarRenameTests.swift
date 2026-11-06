@@ -1,0 +1,144 @@
+import AppKit
+import Testing
+import OpenSketchCore
+@testable import OpenSketchUI
+
+@MainActor struct SidebarRenameTests {
+    @Test func inactivePageRenamePreservesSelectionAndSavesUnicode() throws {
+        let node = DesignNode(name: "卡片", kind: .rectangle)
+        let first = DesignPage(name: "首页", nodes: [node]), second = DesignPage(name: "页面 2")
+        let session = EditorSession(document: DesignDocument(pages: [first, second]))
+        session.selection = [node.id]
+        let original = session.document
+        let request = try #require(session.beginSidebarRename(.page(second.id)))
+        try session.commitSidebarRename(request, name: "  设置 👩🏽‍💻  ")
+        #expect(session.document.pages[1].name == "设置 👩🏽‍💻")
+        #expect(session.document.pages[0] == first)
+        #expect(session.pageID == first.id && session.selection == [node.id])
+        let renamed = session.document
+        session.undo(); #expect(session.document == original && !session.history.canUndo)
+        session.redo(); #expect(session.document == renamed)
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("命名.opensketch")
+        try DocumentCodec.save(renamed, to: url)
+        #expect(try DocumentCodec.load(from: url) == renamed)
+    }
+
+    @Test(arguments: NodeKind.allCases)
+    func clickedLayerOnlyChangesItsName(kind: NodeKind) throws {
+        let target = DesignNode(name: "原名", kind: kind, isVisible: false, isLocked: true)
+        let sibling = DesignNode(name: "其他", kind: .rectangle)
+        let group = DesignNode(name: "容器", kind: .group, isLocked: true, children: [target, sibling])
+        let page = DesignPage(nodes: [group]), otherPage = DesignPage(name: "另页")
+        let session = EditorSession(document: DesignDocument(pages: [page, otherPage]))
+        session.selection = [target.id, sibling.id]
+        let original = session.document
+        let request = try #require(session.beginSidebarRename(.layer(pageID: page.id, nodeID: target.id)))
+        try session.commitSidebarRename(request, name: "登录 / 按钮 ✨")
+        var expected = target; expected.name = "登录 / 按钮 ✨"
+        #expect(session.document.node(id: target.id) == expected)
+        #expect(session.document.node(id: sibling.id) == sibling)
+        #expect(session.selection == [target.id, sibling.id])
+        #expect(session.document.pages[1] == otherPage)
+        session.undo(); #expect(session.document == original && !session.history.canUndo)
+    }
+
+    @Test func openingCancellingAndUnchangedNamePreserveRedo() throws {
+        let session = EditorSession(), id = session.pageID
+        let request = try #require(session.beginSidebarRename(.page(id)))
+        try session.commitSidebarRename(request, name: "临时名")
+        session.undo()
+        let original = session.document
+        let cancelled = try #require(session.beginSidebarRename(.page(id)))
+        #expect(cancelled.originalName == "页面 1")
+        #expect(session.document == original && session.history.canRedo && !session.isDirty)
+        try session.commitSidebarRename(cancelled, name: "页面 1")
+        #expect(session.document == original && session.history.canRedo && !session.history.canUndo)
+    }
+
+    @Test(arguments: ["", " \n\t ", "A\nB", "A\u{0}B"])
+    func invalidNamesLeaveDocumentAndHistoryUntouched(name: String) throws {
+        let session = EditorSession(), original = session.document
+        let request = try #require(session.beginSidebarRename(.page(session.pageID)))
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: name) }
+        #expect(session.document == original && !session.isDirty && !session.history.canUndo)
+    }
+
+    @Test func oversizedNameIsRejectedBeforeMutatingTheDocument() throws {
+        let session = EditorSession(), original = session.document
+        let request = try #require(session.beginSidebarRename(.page(session.pageID)))
+        let oversized = String(repeating: "a", count: DocumentCodec.maximumStringBytes + 1)
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: oversized) }
+        #expect(session.document == original && !session.history.canUndo)
+    }
+
+    @Test func requestTargetsOriginalPageAfterSelectionChanges() throws {
+        let node = DesignNode(name: "目标", kind: .rectangle)
+        let page = DesignPage(nodes: [node]), other = DesignPage()
+        let session = EditorSession(document: DesignDocument(pages: [page, other]))
+        let request = try #require(session.beginSidebarRename(.layer(pageID: page.id, nodeID: node.id)))
+        session.selectPage(other.id)
+        try session.commitSidebarRename(request, name: "仍是目标")
+        #expect(session.pageID == other.id && session.selection.isEmpty)
+        #expect(session.document.node(id: node.id)?.name == "仍是目标")
+        #expect(session.document.pages[1] == other)
+    }
+
+    @Test func deletedMovedReplacedAndConcurrentlyRenamedTargetsAreRejected() throws {
+        let node = DesignNode(name: "目标", kind: .rectangle), page = DesignPage()
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node]), page]))
+        #expect(session.beginSidebarRename(.page(UUID())) == nil)
+        #expect(session.beginSidebarRename(.layer(pageID: page.id, nodeID: node.id)) == nil)
+        let request = try #require(session.beginSidebarRename(.layer(pageID: session.pageID, nodeID: node.id)))
+        session.document.updateNode(id: node.id) { $0.name = "外部修改" }
+        let changed = session.document
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: "迟到的提交") }
+        #expect(session.document == changed && !session.history.canUndo)
+        session.document.removeNode(id: node.id)
+        let removed = session.document
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: "已删") }
+        #expect(session.document == removed)
+        try session.document.insertNode(node, into: page.id)
+        let moved = session.document
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: "已移动") }
+        #expect(session.document == moved)
+        session.replace(.blank())
+        let replacement = session.document
+        #expect(throws: (any Error).self) { try session.commitSidebarRename(request, name: "旧文档") }
+        #expect(session.document == replacement && !session.history.canUndo)
+    }
+
+    @Test func pendingInspectorInputAndRenameHaveSeparateUndo() throws {
+        let node = DesignNode(name: "原名", kind: .rectangle)
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        session.selection = [node.id]
+        let token = try #require(session.beginInspectorEdit(.x, nodeID: node.id))
+        session.scrubInspectorNumber(token, translation: 15)
+        let request = try #require(session.beginSidebarRename(.layer(pageID: session.pageID, nodeID: node.id)))
+        #expect(!session.history.isEditing && session.document.node(id: node.id)?.frame.minX == 15)
+        try session.commitSidebarRename(request, name: "新名")
+        session.undo()
+        #expect(session.document.node(id: node.id)?.name == "原名")
+        #expect(session.document.node(id: node.id)?.frame.minX == 15)
+        session.undo(); #expect(session.document.node(id: node.id) == node)
+    }
+
+    @Test func pendingCanvasTextIsCommittedBeforeRename() throws {
+        _ = NSApplication.shared
+        let node = DesignNode(name: "文字层", kind: .text, text: "原文字")
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        let canvas = CanvasView(session: session)
+        canvas.beginText(node.id)
+        try #require(canvas.editor).string = "输入中的文字"
+        let request = try #require(session.beginSidebarRename(.layer(pageID: session.pageID, nodeID: node.id)))
+        #expect(canvas.editor == nil && session.document.node(id: node.id)?.text == "输入中的文字")
+        try session.commitSidebarRename(request, name: "新文字层")
+        session.undo()
+        #expect(session.document.node(id: node.id)?.name == "文字层")
+        #expect(session.document.node(id: node.id)?.text == "输入中的文字")
+        session.undo(); #expect(session.document.node(id: node.id) == node)
+    }
+}

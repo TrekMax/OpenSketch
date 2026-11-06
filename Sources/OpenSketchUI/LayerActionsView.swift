@@ -93,6 +93,7 @@ struct LayerActionsView: View {
 struct LayerCommandsMenu: View {
     @Bindable var session: EditorSession
     var rowID: UUID
+    var rename: () -> Void
 
     private var selection: Set<UUID> { session.contextMenuSelection(for: rowID) }
 
@@ -107,6 +108,8 @@ struct LayerCommandsMenu: View {
     }
 
     var body: some View {
+        Button("重命名…", action: rename)
+            .accessibilityIdentifier("layer.rename")
         Button("复制图层") { session.duplicateContextLayers(for: rowID) }
             .disabled(!session.canEditContextLayers(for: rowID))
             .accessibilityIdentifier("layer.duplicate")
