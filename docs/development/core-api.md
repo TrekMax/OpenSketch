@@ -181,6 +181,22 @@ enum CanvasEditing {
 
 调用方必须传入手势起始页面及相对该快照的原始位移，避免累计误差；UI 用 `6 / zoom` 将屏幕点阈值转换为页面距离。Core 不持有吸附开关、视口、历史或临时选择状态。
 
+## 画板拖放归属
+
+```swift
+enum ContainerEditing {
+    static func dropTarget(in page: DesignPage, selection: Set<UUID>, at point: CGPoint) -> UUID?
+    static func reparenting(_ document: DesignDocument, pageID: UUID,
+                            selection: Set<UUID>, to targetID: UUID?) throws -> DesignDocument
+}
+```
+
+`dropTarget` 返回指针所在的可编辑 frame。重叠时最上层子树优先，再查找最深 frame；测试真实变换后的矩形和祖先 frame 的裁剪，隐藏/锁定祖先阻断，所选根及后代不能成为目标。普通前景图形不会遮挡其容器资格。无效选择/点返回 nil；nil 也表示页面根，由调用方判定是否允许 drop。
+
+`reparenting` 验证显式 ID 同页并归一化最外选中根。根及祖先必须可编辑；目标为同页 frame 或 nil，不能位于所选子树。每根最近的 frame 祖先等于目标时保持原父亲（包括 nil==nil），避免组内普通移动拆组；选择包含 frame 根时自动归属不执行。跨画板的根按原绘制顺序追加到目标最上方或页面根。
+
+改归属以当前世界变换乘目标世界逆变换得到新局部旋转和中心，保持世界几何、尺寸、UUID 和子树。只修改值副本，完整结果通过 `DocumentCodec` 后返回，失败原子拒绝；错误复用 `LayerEditError` 及格式校验错误。调用方只在鼠标移动后的释放阶段调用，以最后成功应用位移的拖动点确定目标，并与位移共用一次历史；键盘微调、点击、创建和调整尺寸不调用此接口。
+
 ## 坐标与命中
 
 ```swift
