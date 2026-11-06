@@ -106,7 +106,7 @@ import OpenSketchCore
         try fixture.create()
         let textID = try #require(fixture.canvas.textID)
         try #require(fixture.canvas.editor).string = "文字"
-        fixture.session.tool = .ellipse // The toolbar writes the selected tool directly.
+        fixture.session.tool = .ellipse // Simulate an explicit tool change before pending text cleanup.
         try fixture.click(at: CGPoint(x: 340, y: 240))
         #expect(fixture.canvas.editor == nil)
         #expect(fixture.session.document.node(id: textID)?.text == "文字")
