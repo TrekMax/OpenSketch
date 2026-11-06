@@ -142,6 +142,137 @@ import OpenSketchCore
         }
         return false
     }
+    @Test func documentUndoMenuRoutesPastWindowUndoManagerFromCanvas() throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let controller = AppController()
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        controller.window = window
+        let canvas = CanvasView(session: controller.session)
+        window.contentView = canvas
+        #expect(window.makeFirstResponder(canvas))
+        controller.makeMenus()
+        let edit = try #require(app.mainMenu?.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(edit.item(withTitle: "撤销"))
+        let redo = try #require(edit.item(withTitle: "重做"))
+        let node = DesignNode(kind: .rectangle)
+        controller.session.insert([node])
+        #expect(window.undoManager?.canUndo == false)
+        #expect(controller.validateMenuItem(undo))
+        #expect(!controller.validateMenuItem(redo))
+        // A nil-target menu action reaches the window's native undo implementation first.
+        #expect(undo.target === controller)
+        #expect((undo.target as? NSResponder ?? window).tryToPerform(try #require(undo.action), with: undo))
+        #expect(controller.session.page.nodes.isEmpty)
+        #expect(!controller.validateMenuItem(undo))
+        #expect(controller.validateMenuItem(redo))
+        #expect(redo.target === controller)
+        #expect((redo.target as? NSResponder ?? window).tryToPerform(try #require(redo.action), with: redo))
+        #expect(controller.session.page.nodes.map(\.id) == [node.id])
+        #expect(undo.keyEquivalent == "z")
+        #expect(undo.keyEquivalentModifierMask == [.command])
+        #expect(redo.keyEquivalent == "z")
+        #expect(redo.keyEquivalentModifierMask == [.command, .shift])
+    }
+    @Test(arguments: [false, true]) func undoMenuPreservesNativeTextAndFieldEditorHistory(fieldEditor: Bool) throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let controller = AppController()
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        controller.window = window
+        let textView: NSTextView
+        if fieldEditor {
+            let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 240, height: 40))
+            window.contentView = field
+            field.selectText(nil)
+            textView = try #require(field.currentEditor() as? NSTextView)
+            #expect(textView.isFieldEditor)
+        } else {
+            textView = InlineTextView(frame: window.contentView!.bounds)
+            window.contentView = textView
+            #expect(window.makeFirstResponder(textView))
+        }
+        textView.allowsUndo = true
+        controller.makeMenus()
+        let edit = try #require(app.mainMenu?.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(edit.item(withTitle: "撤销"))
+        let redo = try #require(edit.item(withTitle: "重做"))
+        controller.session.insert([DesignNode(kind: .rectangle)])
+        let document = controller.session.document
+        let manager = try #require(textView.undoManager)
+        manager.removeAllActions()
+        #expect(!controller.validateMenuItem(undo)) // Document history must not leak into text editing.
+        textView.string = "A"
+        textView.insertText("B", replacementRange: NSRange(location: 0, length: 1))
+        #expect(manager.canUndo)
+        #expect(controller.validateMenuItem(undo))
+        controller.undo(undo)
+        #expect(textView.string == "A")
+        #expect(controller.session.document == document)
+        #expect(controller.validateMenuItem(redo))
+        controller.redo(redo)
+        #expect(textView.string == "B")
+        #expect(controller.session.document == document)
+    }
+    @Test(arguments: [false, true]) func inlineCommandReturnCommitsUnicodeAsOneTransaction(keyEquivalent: Bool) throws {
+        _ = NSApplication.shared
+        let node = DesignNode(kind: .text, text: "A")
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        let canvas = CanvasView(session: session)
+        canvas.beginText(node.id)
+        let editor = try #require(canvas.editor)
+        editor.string = "你好，openSketch 👩🏽‍💻"
+        let event = try keyEvent(code: 36, characters: "\r", modifiers: .command)
+        if keyEquivalent { #expect(editor.performKeyEquivalent(with: event)) }
+        else { editor.keyDown(with: event) }
+        #expect(canvas.editor == nil)
+        #expect(session.document.node(id: node.id)?.text == "你好，openSketch 👩🏽‍💻")
+        #expect(session.history.canUndo)
+        session.undo()
+        #expect(session.document.node(id: node.id)?.text == "A")
+        #expect(!session.history.canUndo)
+        #expect(!session.isDirty)
+    }
+    @Test func inlineEscapeCancelsUnicodeEditWithoutHistoryEntry() throws {
+        _ = NSApplication.shared
+        let node = DesignNode(kind: .text, text: "A")
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        let canvas = CanvasView(session: session)
+        canvas.beginText(node.id)
+        let editor = try #require(canvas.editor)
+        editor.string = "取消 👩🏽‍💻"
+        editor.keyDown(with: try keyEvent(code: 53, characters: "\u{1b}"))
+        #expect(canvas.editor == nil)
+        #expect(session.document.node(id: node.id)?.text == "A")
+        #expect(!session.history.canUndo)
+        #expect(!session.isDirty)
+    }
+    @Test func inlineMarkedTextRetainsNativeCompositionBeforeCommandReturnCommit() throws {
+        _ = NSApplication.shared
+        let node = DesignNode(kind: .text, text: "A")
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        let canvas = CanvasView(session: session)
+        canvas.beginText(node.id)
+        let editor = try #require(canvas.editor)
+        editor.setMarkedText("你", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: 0, length: 1))
+        #expect(editor.hasMarkedText())
+        let event = try keyEvent(code: 36, characters: "\r", modifiers: .command)
+        _ = editor.performKeyEquivalent(with: event)
+        #expect(canvas.editor != nil)
+        #expect(session.document.node(id: node.id)?.text == "A")
+        #expect(!session.history.canUndo)
+        editor.unmarkText()
+        #expect(editor.performKeyEquivalent(with: event))
+        #expect(canvas.editor == nil)
+        #expect(session.document.node(id: node.id)?.text == "你")
+    }
+    private func keyEvent(code: UInt16, characters: String, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
+        try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0, windowNumber: 0, context: nil, characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code))
+    }
     @Test func groupOpacityCompositesOverlappingChildrenOnce() throws {
         let red = NodeStyle(fill: RGBAColor(red: 1, green: 0, blue: 0))
         let a = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 60, height: 40), style: red)

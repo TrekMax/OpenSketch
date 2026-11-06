@@ -43,8 +43,9 @@ import OpenSketchCore
         if forcePanel || url == nil { let panel = NSSavePanel(); panel.nameFieldStringValue = "未命名.opensketch"; panel.allowedContentTypes = [UTType(filenameExtension: "opensketch") ?? .package]; guard panel.runModal() == .OK else { return false }; url = panel.url }
         guard let url else { return false }; do { try DocumentCodec.save(session.document, to: url); session.url = url; session.history.markSaved(document: session.document); return true } catch { self.error(error); return false }
     }
-    @objc func undo(_ sender: Any?) { session.undo() }
-    @objc func redo(_ sender: Any?) { session.redo() }
+    var activeTextEditor: NSTextView? { (NSApp.keyWindow ?? window)?.firstResponder as? NSTextView }
+    @objc func undo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.undo() } else { session.undo() } }
+    @objc func redo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.redo() } else { session.redo() } }
     @objc func cut(_ sender: Any?) { session.finishInput?(); session.copy(); session.deleteSelection() }
     public override func selectAll(_ sender: Any?) { session.selection = Set(SceneGeometry.traversal(in: session.page).filter { session.editable($0.id) }.map(\.id)) }
     @objc func copy(_ sender: Any?) { session.finishInput?(); session.copy() }
@@ -76,11 +77,11 @@ import OpenSketchCore
         func add(_ m: NSMenu, _ title: String, _ action: Selector, _ key: String = "", shift: Bool = false, responder: Bool = false) { let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = responder ? nil : self; item.keyEquivalentModifierMask = shift ? [.command,.shift] : [.command]; m.addItem(item) }
         let app = menu("openSketch"); add(app,"退出 openSketch",#selector(NSApplication.terminate(_:)),"q",responder:true)
         let file = menu("文件"); add(file,"打开示例设计",#selector(openExample(_:))); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭窗口",#selector(NSWindow.performClose(_:)),"w",responder:true)
-        let edit = menu("编辑"); add(edit,"撤销",#selector(undo(_:)),"z",responder:true); add(edit,"重做",#selector(redo(_:)),"z",shift:true,responder:true); add(edit,"剪切",#selector(NSText.cut(_:)),"x",responder:true); add(edit,"拷贝",#selector(copy(_:)),"c",responder:true); add(edit,"粘贴",#selector(paste(_:)),"v",responder:true); add(edit,"全选",#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,"复制图层",#selector(duplicate(_:)),"d"); add(edit,"删除图层",#selector(delete(_:)))
+        let edit = menu("编辑"); add(edit,"撤销",#selector(undo(_:)),"z"); add(edit,"重做",#selector(redo(_:)),"z",shift:true); add(edit,"剪切",#selector(NSText.cut(_:)),"x",responder:true); add(edit,"拷贝",#selector(copy(_:)),"c",responder:true); add(edit,"粘贴",#selector(paste(_:)),"v",responder:true); add(edit,"全选",#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,"复制图层",#selector(duplicate(_:)),"d"); add(edit,"删除图层",#selector(delete(_:)))
         let view = menu("视图"); add(view,"适合窗口",#selector(fit(_:)),"1"); add(view,"实际大小 100%",#selector(actualSize(_:)),"0")
         NSApp.nextResponder = self
     }
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        switch menuItem.action { case #selector(undo(_:)): session.history.canUndo; case #selector(redo(_:)): session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
+        switch menuItem.action { case #selector(undo(_:)): activeTextEditor.map { $0.undoManager?.canUndo ?? false } ?? session.history.canUndo; case #selector(redo(_:)): activeTextEditor.map { $0.undoManager?.canRedo ?? false } ?? session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
     }
 }

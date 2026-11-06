@@ -7,6 +7,20 @@ struct CanvasHost: NSViewRepresentable {
     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
     func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; view.needsDisplay = true }
 }
+@MainActor final class InlineTextView: NSTextView {
+    var commitEditing: (() -> Void)?
+    private func commitsEditing(_ event: NSEvent) -> Bool {
+        !hasMarkedText() && event.modifierFlags.contains(.command) && (event.keyCode == 36 || event.keyCode == 76)
+    }
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if commitsEditing(event) { commitEditing?(); return true }
+        return super.performKeyEquivalent(with: event)
+    }
+    override func keyDown(with event: NSEvent) {
+        if commitsEditing(event) { commitEditing?(); return }
+        super.keyDown(with: event)
+    }
+}
 @MainActor final class CanvasView: NSView, NSTextViewDelegate {
     let session: EditorSession
     var start: CGPoint?
@@ -96,7 +110,8 @@ struct CanvasHost: NSViewRepresentable {
         guard let n = session.document.node(id: id), session.editable(id) else { return }
         guard n.rotation == 0, session.document.parentID(of: id) == nil else { session.message = "嵌套或旋转文字请在右侧检查器编辑内容"; return }
         session.beginGesture(); textID = id
-        let view = NSTextView(frame: CGRect(x: n.frame.minX*session.zoom+session.pan.x, y: n.frame.minY*session.zoom+session.pan.y, width: max(80,n.frame.width*session.zoom), height: max(40,n.frame.height*session.zoom)))
+        let view = InlineTextView(frame: CGRect(x: n.frame.minX*session.zoom+session.pan.x, y: n.frame.minY*session.zoom+session.pan.y, width: max(80,n.frame.width*session.zoom), height: max(40,n.frame.height*session.zoom)))
+        view.commitEditing = { [weak self] in self?.finishText(commit: true) }
         view.isRichText = false; view.allowsUndo = true; view.textContainerInset = .zero; view.textContainer?.lineFragmentPadding = 0; view.delegate = self
         view.string = n.text; view.typingAttributes = TextLayout.attributes(n); view.font = NSFont(name: n.fontName, size: n.fontSize*session.zoom) ?? .systemFont(ofSize: n.fontSize*session.zoom)
         view.setAccessibilityIdentifier("editor.inlineText"); view.setAccessibilityLabel("编辑文字，Command Return 完成，Escape 取消")
@@ -105,6 +120,6 @@ struct CanvasHost: NSViewRepresentable {
     func finishText(commit: Bool) { guard let editor, let id = textID else { return }; if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() } else { session.cancelGesture() }; editor.removeFromSuperview(); self.editor = nil; textID = nil; window?.makeFirstResponder(self); needsDisplay = true }
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) { finishText(commit: false); return true }
-        if commandSelector == #selector(NSResponder.insertNewline(_:)), NSApp.currentEvent?.modifierFlags.contains(.command) == true { finishText(commit: true); return true }; return false
+        return false
     }
 }
