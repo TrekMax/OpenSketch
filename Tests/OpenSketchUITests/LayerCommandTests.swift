@@ -102,18 +102,23 @@ import OpenSketchCore
         #expect(!session.history.canUndo)
     }
 
-    @Test func treeKeepsParentsBeforeReversedChildrenAndRealDepth() {
+    @Test func treeKeepsParentsBeforeReversedChildrenAndRealDepth() throws {
         let leaf = DesignNode(name: "最深", kind: .rectangle)
         let inner = DesignNode(name: "内组", kind: .group, children: [leaf])
         let sibling = DesignNode(name: "前子层", kind: .ellipse)
         let outer = DesignNode(name: "外组", kind: .group, children: [inner, sibling])
         let front = DesignNode(name: "前层", kind: .rectangle)
         let page = DesignPage(nodes: [outer, front])
-        let rows = LayerTreeRow.rows(in: page)
-        #expect(rows.map(\.id) == [front.id, outer.id, sibling.id, inner.id, leaf.id])
-        #expect(rows.map(\.depth) == [0, 0, 1, 1, 2])
-        #expect(LayerTreeRow.rows(in: page, collapsed: [inner.id]).map(\.id) == [front.id, outer.id, sibling.id, inner.id])
-        #expect(LayerTreeRow.rows(in: page, collapsed: [outer.id]).map(\.id) == [front.id, outer.id])
+        let coordinator = NativeLayerTree.Coordinator(session: EditorSession(document: DesignDocument(pages: [page])))
+        let scroll = coordinator.makeScrollView()
+        let tree = try #require(scroll.documentView as? NativeLayerOutline)
+        func ids() -> [UUID] { (0..<tree.numberOfRows).compactMap { (tree.item(atRow: $0) as? LayerTreeItem)?.id } }
+        #expect(ids() == [front.id, outer.id, sibling.id, inner.id, leaf.id])
+        #expect((0..<5).map { tree.level(forRow: $0) } == [0, 0, 1, 1, 2])
+        tree.collapseItem(coordinator.items[inner.id])
+        #expect(ids() == [front.id, outer.id, sibling.id, inner.id])
+        tree.collapseItem(coordinator.items[outer.id])
+        #expect(ids() == [front.id, outer.id])
     }
 
     @Test func shiftLayerSelectionTogglesMembership() {

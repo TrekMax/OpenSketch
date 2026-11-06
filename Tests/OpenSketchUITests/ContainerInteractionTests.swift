@@ -225,9 +225,11 @@ import OpenSketchCore
         let a = shape(), frame = container()
         let f = fixture([a, frame]); defer { f.window.close() }
         try drag(f, from: CGPoint(x: 25, y: 45), to: CGPoint(x: 235, y: 155)); try release(f, at: CGPoint(x: 235, y: 155))
-        let rows = LayerTreeRow.rows(in: f.session.page)
-        #expect(rows.map(\.id) == [frame.id, a.id])
-        #expect(rows.map(\.depth) == [0, 1])
+        let treeCoordinator = NativeLayerTree.Coordinator(session: f.session)
+        let scroll = treeCoordinator.makeScrollView()
+        let tree = try #require(scroll.documentView as? NativeLayerOutline)
+        #expect((0..<2).map { (tree.item(atRow: $0) as? LayerTreeItem)?.id } == [frame.id, a.id])
+        #expect((0..<2).map { tree.level(forRow: $0) } == [0, 1])
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".opensketch")
         defer { try? FileManager.default.removeItem(at: url) }
         try DocumentCodec.save(f.session.document, to: url)

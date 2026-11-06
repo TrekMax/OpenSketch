@@ -1,14 +1,11 @@
-import AppKit
+import Foundation
 import OpenSketchCore
 
 struct SidebarLayerDrag: Equatable, Sendable {
-    static let typeIdentifier = "org.opensketch.layer-tree-drag"
     let id = UUID()
     let pageID: UUID
     let selection: Set<UUID>
     let document: DesignDocument
-    /// A process-local advertised type carries identity through pasteboard bridging.
-    var itemTypeIdentifier: String { Self.typeIdentifier + "." + id.uuidString.lowercased() }
 }
 
 extension EditorSession {
@@ -51,44 +48,4 @@ extension EditorSession {
         }
     }
 
-    func sidebarLayerDragProvider(for rowID: UUID) -> NSItemProvider {
-        guard let request = beginSidebarLayerDrag(rowID) else { return NSItemProvider() }
-        let provider = NSItemProvider()
-        provider.suggestedName = request.id.uuidString
-        let data = Data(request.id.uuidString.utf8)
-        for type in [SidebarLayerDrag.typeIdentifier, request.itemTypeIdentifier] {
-            provider.registerDataRepresentation(forTypeIdentifier: type, visibility: .ownProcess) { completion in
-                completion(data, nil)
-                return nil
-            }
-        }
-        return provider
-    }
-
-    func sidebarDragToken(from providers: [NSItemProvider]) -> UUID? {
-        guard providers.count == 1, let request = sidebarLayerDrag,
-              providers[0].hasItemConformingToTypeIdentifier(SidebarLayerDrag.typeIdentifier),
-              providers[0].registeredTypeIdentifiers.contains(request.itemTypeIdentifier) else { return nil }
-        return request.id
-    }
-
-    /// Accept only this session's provider, then revalidate its bytes and document
-    /// on the main actor after asynchronous delivery. Never trust a display name alone.
-    func acceptSidebarLayerDrop(_ providers: [NSItemProvider], to destination: LayerDropDestination,
-                                completion: @escaping @MainActor (Bool) -> Void) -> Bool {
-        guard let token = sidebarDragToken(from: providers), canDropSidebarLayers(token, to: destination) else { return false }
-        providers[0].loadDataRepresentation(forTypeIdentifier: SidebarLayerDrag.typeIdentifier) { [weak self] data, error in
-            let valid = error == nil && data == Data(token.uuidString.utf8)
-            Task { @MainActor in
-                guard let self else { completion(false); return }
-                guard valid else {
-                    if self.sidebarLayerDrag?.id == token { self.sidebarLayerDrag = nil }
-                    completion(false)
-                    return
-                }
-                completion(self.commitSidebarLayerDrop(token, to: destination))
-            }
-        }
-        return true
-    }
 }
