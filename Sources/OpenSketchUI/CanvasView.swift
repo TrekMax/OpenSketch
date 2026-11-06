@@ -25,6 +25,8 @@ struct CanvasHost: NSViewRepresentable {
     let session: EditorSession
     var start: CGPoint?
     var creation: UUID?
+    private var creationTool: EditorTool?
+    private var textCreationTool: EditorTool?
     var resizing: UUID?
     var editor: NSTextView?
     var textID: UUID?
@@ -70,7 +72,7 @@ struct CanvasHost: NSViewRepresentable {
     }
     override func mouseDown(with event: NSEvent) {
         finishText(commit: true); window?.makeFirstResponder(self)
-        let p = world(event); start = p; creation = nil; resizing = nil
+        let p = world(event); start = p; creation = nil; creationTool = nil; resizing = nil
         if session.tool == .select {
             if let n = session.selected, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
                 let corner = CGPoint(x: n.frame.width, y: n.frame.height).applying(transform)
@@ -87,7 +89,7 @@ struct CanvasHost: NSViewRepresentable {
             session.beginGesture()
             let kind = NodeKind(rawValue: session.tool.rawValue) ?? .rectangle
             let node = DesignNode(name: session.tool.title, kind: kind, frame: CGRect(x: p.x, y: p.y, width: kind == .text ? 240 : 120, height: kind == .text ? 80 : 100), text: kind == .text ? "输入文字" : "")
-            if session.create(node) { creation = node.id } else { session.cancelGesture(); start = nil }
+            if session.create(node) { creation = node.id; creationTool = session.tool } else { session.cancelGesture(); start = nil }
         }
         needsDisplay = true
     }
@@ -99,10 +101,29 @@ struct CanvasHost: NSViewRepresentable {
         } else { session.moveSelection(by: CGSize(width: p.x-start.x, height: p.y-start.y)) }
         needsDisplay = true
     }
-    func finishGesture() { if start != nil { session.commitGesture() }; start = nil; creation = nil; resizing = nil }
-    override func mouseUp(with event: NSEvent) { let id = creation; finishGesture(); if let id, session.document.node(id: id)?.kind == .text { beginText(id) }; needsDisplay = true }
+    private func finishCreation(tool: EditorTool?) {
+        if let tool, session.tool == tool { session.tool = .select }
+    }
+    func finishGesture(beginTextEditing: Bool = false) {
+        let id = creation, tool = creationTool
+        if start != nil { session.commitGesture() }
+        start = nil; creation = nil; creationTool = nil; resizing = nil
+        if beginTextEditing, let id, session.document.node(id: id)?.kind == .text {
+            beginText(id)
+            if textID == id { textCreationTool = tool; return }
+        }
+        finishCreation(tool: tool)
+    }
+    override func mouseUp(with event: NSEvent) { finishGesture(beginTextEditing: true); needsDisplay = true }
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { finishText(commit: false); if start != nil { session.cancelGesture(); start = nil; creation = nil; resizing = nil }; needsDisplay = true; return }
+        if event.keyCode == 53 {
+            finishText(commit: false)
+            if start != nil {
+                session.cancelGesture(); start = nil; creation = nil; resizing = nil
+                finishCreation(tool: creationTool); creationTool = nil
+            }
+            needsDisplay = true; return
+        }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
         let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "t": .text]
         if let tool = tools[event.charactersIgnoringModifiers ?? ""] { session.tool = tool } else { super.keyDown(with: event) }
@@ -126,7 +147,14 @@ struct CanvasHost: NSViewRepresentable {
         view.setAccessibilityIdentifier("editor.inlineText"); view.setAccessibilityLabel("编辑文字，Command Return 完成，Escape 取消")
         addSubview(view); editor = view; window?.makeFirstResponder(view); view.selectAll(nil); session.message = "Command Return 完成文字编辑 · Escape 取消"
     }
-    func finishText(commit: Bool) { guard let editor, let id = textID else { return }; if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() } else { session.cancelGesture() }; editor.removeFromSuperview(); self.editor = nil; textID = nil; window?.makeFirstResponder(self); needsDisplay = true }
+    func finishText(commit: Bool) {
+        guard let editor, let id = textID else { return }
+        if commit { session.document.updateNode(id: id) { $0.text = editor.string }; session.commitGesture() }
+        else { session.cancelGesture() }
+        editor.removeFromSuperview(); self.editor = nil; textID = nil
+        finishCreation(tool: textCreationTool); textCreationTool = nil
+        window?.makeFirstResponder(self); needsDisplay = true
+    }
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) { finishText(commit: false); return true }
         return false
