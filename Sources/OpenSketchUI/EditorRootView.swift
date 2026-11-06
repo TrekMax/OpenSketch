@@ -21,6 +21,7 @@ private struct DocumentEditorView: View {
                 ForEach(EditorTool.allCases, id: \.self) { tool in
                     Button { session.finishInput?(); session.tool = tool } label: {
                         Label(tool.title, systemImage: tool.symbol)
+                            .foregroundStyle(session.tool == tool ? EditorPalette.selectionForeground(colorScheme) : .primary)
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(session.tool == tool ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 6))
                     }
@@ -33,9 +34,9 @@ private struct DocumentEditorView: View {
             .padding(.horizontal, 12)
             .font(.system(size: 12))
             .frame(height: 42)
-            Divider()
-            HStack(spacing: 0) { LayersSidebar(session: session).frame(width: 220); Divider(); CanvasHost(session: session).frame(maxWidth: .infinity, maxHeight: .infinity); Divider(); InspectorView(session: session).frame(width: 260) }
-            Divider()
+            EditorDivider()
+            HStack(spacing: 0) { LayersSidebar(session: session).frame(width: 220); EditorDivider(); CanvasHost(session: session).frame(maxWidth: .infinity, maxHeight: .infinity); EditorDivider(); InspectorView(session: session).frame(width: 260) }
+            EditorDivider()
             HStack {
                 Text(session.message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
@@ -49,7 +50,7 @@ private struct DocumentEditorView: View {
             }.padding(8)
         }
         .background(Color(nsColor: EditorPalette.panel))
-        .tint(.primary)
+        .tint(colorScheme == .light ? Color(nsColor: EditorPalette.accent) : .primary)
         .frame(minWidth: 980, minHeight: 620)
     }
 }

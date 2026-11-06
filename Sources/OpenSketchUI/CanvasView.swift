@@ -61,7 +61,7 @@ struct CanvasHost: NSViewRepresentable {
         EditorPalette.canvas.setFill(); bounds.fill()
         c.saveGState(); c.translateBy(x: session.pan.x, y: session.pan.y); c.scaleBy(x: session.zoom, y: session.zoom)
         if session.grid && session.zoom >= 0.25 {
-            c.setFillColor(NSColor.separatorColor.cgColor)
+            c.setFillColor(EditorPalette.grid.cgColor)
             let step: CGFloat = 20
             let left = floor(-session.pan.x/session.zoom/step)*step, top = floor(-session.pan.y/session.zoom/step)*step
             for x in stride(from: left, through: left+bounds.width/session.zoom+step, by: step) { for y in stride(from: top, through: top+bounds.height/session.zoom+step, by: step) { c.fill(CGRect(x: x, y: y, width: 1/session.zoom, height: 1/session.zoom)) } }
@@ -69,7 +69,7 @@ struct CanvasHost: NSViewRepresentable {
         CanvasRenderer.draw(page: session.page, in: c)
         for id in session.selection {
             guard let n = session.document.node(id: id), let geometry = CanvasRenderer.selectionGeometry(id: id, page: session.page) else { continue }
-            c.saveGState(); for clip in geometry.clips { c.addPath(clip); c.clip() }; c.concatenate(geometry.transform); c.setStrokeColor(NSColor.systemPurple.cgColor); c.setLineWidth(1.5/session.zoom)
+            c.saveGState(); for clip in geometry.clips { c.addPath(clip); c.clip() }; c.concatenate(geometry.transform); c.setStrokeColor(EditorPalette.accent.cgColor); c.setLineWidth(1.5/session.zoom)
             let rect = CGRect(origin: .zero, size: n.frame.size); c.stroke(geometry.localBounds)
             if n.rotation == 0 && session.editable(id) { let size = 8/session.zoom; c.setFillColor(NSColor.white.cgColor); let handle = CGRect(x: rect.maxX-size/2, y: rect.maxY-size/2, width: size, height: size); c.fill(handle); c.stroke(handle) }
             c.restoreGState()

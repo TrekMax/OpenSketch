@@ -45,9 +45,10 @@ struct DocumentTabsView: View {
                             .help("关闭“\(document.session.url?.lastPathComponent ?? document.title)”")
                         }
                         .buttonStyle(.plain)
+                        .foregroundStyle(workspace.currentID == document.id ? EditorPalette.selectionForeground(colorScheme) : .primary)
                         .frame(width: 160, height: 28)
                         .background(workspace.currentID == document.id ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.primary.opacity(workspace.currentID == document.id ? 0.18 : 0.07), lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(tabBorder(selected: workspace.currentID == document.id), lineWidth: 1))
                         .id(document.id)
                     }
                 }
@@ -65,5 +66,10 @@ struct DocumentTabsView: View {
         }
         .frame(width: width, height: 32)
         .accessibilityIdentifier("document.tabs")
+    }
+
+    private func tabBorder(selected: Bool) -> Color {
+        if colorScheme == .dark { return .primary.opacity(selected ? 0.18 : 0.07) }
+        return selected ? Color(nsColor: EditorPalette.accent).opacity(0.2) : Color(nsColor: EditorPalette.separator)
     }
 }

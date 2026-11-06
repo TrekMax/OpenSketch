@@ -4,20 +4,20 @@ import OpenSketchCore
 struct InspectorView: View {
     @Bindable var session: EditorSession
     func number(_ title: String, _ id: String, node: DesignNode, get: @escaping (DesignNode)->Double, set: @escaping (inout DesignNode,Double)->Void) -> some View {
-        HStack { Text(title).frame(width: 58, alignment: .leading); TextField(title, value: Binding(get: { get(session.document.node(id: node.id) ?? node) }, set: { value in guard value.isFinite else { return }; session.update(node.id) { set(&$0,value) } }), format: .number.precision(.fractionLength(0...2))).textFieldStyle(.roundedBorder).accessibilityIdentifier("inspector.\(id)") }
+        HStack { Text(title).frame(width: 58, alignment: .leading); TextField(title, value: Binding(get: { get(session.document.node(id: node.id) ?? node) }, set: { value in guard value.isFinite else { return }; session.update(node.id) { set(&$0,value) } }), format: .number.precision(.fractionLength(0...2))).modifier(EditorFieldStyle(roundedInDark: true)).accessibilityIdentifier("inspector.\(id)") }
     }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("检查器").font(.headline)
                 if let n = session.selected {
-                    TextField("图层名称", text: Binding(get: { session.document.node(id: n.id)?.name ?? "" }, set: { value in session.update(n.id) { $0.name = value } })).accessibilityIdentifier("inspector.name")
+                    TextField("图层名称", text: Binding(get: { session.document.node(id: n.id)?.name ?? "" }, set: { value in session.update(n.id) { $0.name = value } })).modifier(EditorFieldStyle()).accessibilityIdentifier("inspector.name")
                     number("X", "x", node: n, get: { $0.frame.origin.x }, set: { $0.frame.origin.x = max(-1e9,min(1e9,$1)) })
                     number("Y", "y", node: n, get: { $0.frame.origin.y }, set: { $0.frame.origin.y = max(-1e9,min(1e9,$1)) })
                     number("宽", "width", node: n, get: { $0.frame.width }, set: { $0.frame.size.width = max(1,min(1e7,$1)) })
                     number("高", "height", node: n, get: { $0.frame.height }, set: { $0.frame.size.height = max(1,min(1e7,$1)) })
                     number("旋转", "rotation", node: n, get: { $0.rotation }, set: { $0.rotation = $1.truncatingRemainder(dividingBy: 360) })
-                    Divider()
+                    EditorDivider()
                     Toggle("填充", isOn: Binding(get: { n.style.fill != nil }, set: { value in session.update(n.id) { $0.style.fill = value ? .white : nil } })).accessibilityIdentifier("inspector.fillEnabled")
                     if n.style.fill != nil { ColorPicker("填充颜色", selection: Binding(get: { Color(nsColor: n.style.fill!.nsColor) }, set: { color in session.update(n.id) { $0.style.fill = RGBAColor(NSColor(color)) } })).accessibilityIdentifier("inspector.fill") }
                     Toggle("描边", isOn: Binding(get: { n.style.stroke != nil }, set: { value in session.update(n.id) { $0.style.stroke = value ? .black : nil } })).accessibilityIdentifier("inspector.strokeEnabled")
@@ -26,9 +26,9 @@ struct InspectorView: View {
                     number("圆角", "cornerRadius", node: n, get: { $0.style.cornerRadius }, set: { $0.style.cornerRadius = max(0,min(1e7,$1)) })
                     if n.kind == .frame { Toggle("裁剪内容", isOn: Binding(get: { n.clipsContent }, set: { value in session.update(n.id) { $0.clipsContent = value } })).accessibilityIdentifier("inspector.clip") }
                     if n.kind == .text {
-                        Divider(); Text("文字内容")
-                        TextField("文字内容", text: Binding(get: { n.text }, set: { value in session.update(n.id) { $0.text = value } }), axis: .vertical).lineLimit(3...8).accessibilityIdentifier("inspector.text")
-                        TextField("字体名称", text: Binding(get: { n.fontName }, set: { value in session.update(n.id) { $0.fontName = value } })).accessibilityIdentifier("inspector.font")
+                        EditorDivider(); Text("文字内容")
+                        TextField("文字内容", text: Binding(get: { n.text }, set: { value in session.update(n.id) { $0.text = value } }), axis: .vertical).lineLimit(3...8).modifier(EditorFieldStyle()).accessibilityIdentifier("inspector.text")
+                        TextField("字体名称", text: Binding(get: { n.fontName }, set: { value in session.update(n.id) { $0.fontName = value } })).modifier(EditorFieldStyle()).accessibilityIdentifier("inspector.font")
                         number("字号", "fontSize", node: n, get: { $0.fontSize }, set: { $0.fontSize = max(1,min(1000,$1)) })
                         Picker("对齐", selection: Binding(get: { n.textAlignment }, set: { value in session.update(n.id) { $0.textAlignment = value } })) { Text("左").tag(ParagraphAlignment.left); Text("中").tag(ParagraphAlignment.center); Text("右").tag(ParagraphAlignment.right) }.accessibilityIdentifier("inspector.alignment")
                     }
