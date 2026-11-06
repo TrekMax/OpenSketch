@@ -35,6 +35,8 @@ open build/openSketch.app
 
 Sketch 参考亮色更新通过相同 92 项回归测试、Release/签名检查，以及真实窗口的亮暗切换、选中态和检查器外观验证，详见[亮色配色记录](docs/development/2026-11-06-sketch-light.md)。
 
+后续修复画布平移/缩放时越界覆盖面板的问题，图形与行内文字编辑均限制在中间编辑区。93 项测试和实际窗口验证通过，详见[画布裁剪记录](docs/development/2026-11-06-canvas-viewport.md)。
+
 ## 操作
 
 | 操作 | 快捷键/入口 |

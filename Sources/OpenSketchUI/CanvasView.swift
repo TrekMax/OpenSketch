@@ -34,6 +34,8 @@ struct CanvasHost: NSViewRepresentable {
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
         self.session = session; super.init(frame: .zero)
+        // Keep artwork, selection overlays and the inline editor inside the viewport.
+        clipsToBounds = true
         setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel("设计画布")
         session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishGesture() }
         session.fitCanvas = { [weak self] in self?.fit() }
