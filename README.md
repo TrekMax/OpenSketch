@@ -31,7 +31,7 @@ open build/openSketch.app
 
 后续外观与标题栏更新通过 50 项测试（UI 26、核心 24）及 Release/签名检查；另修复打开/保存面板对 `.opensketch` 目录包的类型过滤。该次 GUI 验收与锁屏造成的剩余验证范围见[外观更新记录](docs/development/2026-11-06-appearance.md)。
 
-多文档与单次绘制更新通过 92 项测试（UI 68、核心 24）及 Release/签名检查。单次绘制已完成中间版本真实 GUI 验证；最终多文档 GUI 在启动时遇到系统锁屏，待验收范围见[更新记录](docs/development/2026-11-06-multiple-documents.md)。
+多文档与单次绘制更新通过 92 项测试（UI 68、核心 24）及 Release/签名检查。解锁后已完成连续新建三文档、独立编辑/撤销/缩放、关闭及退出取消、保存重开、批量打开去重和窗口重开的真实 GUI 验证；横向手势及小窗口手动调整仍待人工确认，详见[更新记录](docs/development/2026-11-06-multiple-documents.md)。
 
 ## 操作
 
