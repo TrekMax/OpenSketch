@@ -58,6 +58,8 @@ struct InspectorNumberField: NSViewRepresentable {
     func configure(session: EditorSession, nodeID: UUID, property: InspectorNumberProperty) {
         if self.session !== session || self.nodeID != nodeID || self.property != property {
             endInput()
+            // A reused representable must not keep the old node's field editor.
+            if field.currentEditor() != nil { window?.makeFirstResponder(nil) }
             self.session = session; self.nodeID = nodeID; self.property = property
         }
         guard let node = session.document.node(id: nodeID) else { return }
@@ -98,9 +100,16 @@ struct InspectorNumberField: NSViewRepresentable {
     }
     @objc private func windowInputEnded(_ notification: Notification) { endInput() }
 
-    func controlTextDidBeginEditing(_ notification: Notification) {
-        guard let session, let nodeID else { return }
-        textToken = session.beginInspectorEdit(property, nodeID: nodeID)
+    func controlTextDidBeginEditing(_ notification: Notification) { beginTextSegment() }
+    func controlTextDidChange(_ notification: Notification) {
+        // Resigning the key window commits the previous segment, but AppKit may
+        // preserve the same field editor when the window becomes key again.
+        if textToken == nil, field.currentEditor() != nil { beginTextSegment() }
+    }
+    private func beginTextSegment() {
+        guard let session, let nodeID,
+              let token = session.beginInspectorEdit(property, nodeID: nodeID) else { return }
+        textToken = token
         session.finishInspectorText = { [weak self] in self?.finishText() }
     }
     func controlTextDidEndEditing(_ notification: Notification) { finishText() }

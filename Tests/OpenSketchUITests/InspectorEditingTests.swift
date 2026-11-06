@@ -270,12 +270,31 @@ import OpenSketchCore
         editor.insertText("55", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
         NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
         #expect(!s.history.isEditing)
-        control.field.selectText(nil)
-        let resumed = try #require(control.field.currentEditor() as? NSTextView)
-        resumed.insertText("65", replacementRange: NSRange(location: 0, length: resumed.string.utf16.count))
+        // Restoring the window does not reselect the field or replace its editor.
+        #expect(control.field.currentEditor() === editor)
+        editor.insertText("65", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
         window.makeFirstResponder(nil)
         #expect(s.selected?.frame.minX == 65)
         s.undo(); #expect(s.selected?.frame.minX == 55)
+    }
+
+    @Test func anOldFieldEditorCannotRestartInputAfterRebindingToAnotherNode() throws {
+        let (s, control, window) = nativeFixture(); defer { window.close() }
+        let originalID = try #require(s.selection.first)
+        let other = DesignNode(kind: .rectangle, frame: CGRect(x: 90, y: 30, width: 80, height: 60))
+        s.document.pages[0].nodes.append(other)
+        s.history = DocumentHistory(document: s.document)
+        control.field.selectText(nil)
+        let editor = try #require(control.field.currentEditor() as? NSTextView)
+        editor.insertText("55", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        s.selection = [other.id]
+        control.configure(session: s, nodeID: other.id, property: .x)
+        #expect(control.field.currentEditor() == nil)
+        editor.insertText("65", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        window.makeFirstResponder(nil)
+        #expect(s.document.node(id: originalID)?.frame.minX == 55)
+        #expect(s.document.node(id: other.id)?.frame.minX == 90)
+        #expect(!s.history.isEditing)
     }
 
     @Test func nativeTextUndoRemainsLocalUntilTheFieldCommits() throws {
@@ -322,6 +341,40 @@ import OpenSketchCore
         s.finishInspectorEdit(token)
         #expect(s.document == original)
         #expect(!s.history.canUndo)
+    }
+
+    @Test(arguments: [InspectorNumberProperty.opacity, .cornerRadius, .height])
+    func refreshedNumericGlyphsMatchAFreshNativeControl(property: InspectorNumberProperty) throws {
+        let (s, reused, window) = nativeFixture(); defer { window.close() }
+        window.appearance = NSAppearance(named: .aqua)
+        let id = try #require(s.selection.first)
+        s.document.updateNode(id: id) { $0.style.opacity = 0.7; $0.style.cornerRadius = 8; $0.frame.size.height = 120 }
+        reused.configure(session: s, nodeID: id, property: property)
+        reused.layoutSubtreeIfNeeded()
+        let before = try #require(reused.bitmapImageRepForCachingDisplay(in: reused.bounds))
+        reused.cacheDisplay(in: reused.bounds, to: before)
+        s.document.updateNode(id: id) { $0.style.opacity = 1; $0.style.cornerRadius = 0; $0.frame.size.height = 80 }
+        reused.configure(session: s, nodeID: id, property: property)
+        reused.layoutSubtreeIfNeeded()
+        // A new destination avoids mistaking transparent drawing over an old
+        // caller-owned bitmap for stale pixels inside the native view itself.
+        let bitmap = try #require(reused.bitmapImageRepForCachingDisplay(in: reused.bounds))
+        reused.cacheDisplay(in: reused.bounds, to: bitmap)
+        let fresh = InspectorNumberControl(frame: reused.frame)
+        window.contentView?.addSubview(fresh)
+        fresh.configure(session: s, nodeID: id, property: property)
+        fresh.layoutSubtreeIfNeeded()
+        let expected = try #require(fresh.bitmapImageRepForCachingDisplay(in: fresh.bounds))
+        fresh.cacheDisplay(in: fresh.bounds, to: expected)
+        #expect(bitmap.pixelsWide == expected.pixelsWide)
+        #expect(bitmap.pixelsHigh == expected.pixelsHigh)
+        var differingPixels = 0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                if bitmap.colorAt(x: x, y: y) != expected.colorAt(x: x, y: y) { differingPixels += 1 }
+            }
+        }
+        #expect(differingPixels == 0)
     }
 
     private func nativeFixture() -> (EditorSession, InspectorNumberControl, NSWindow) {
