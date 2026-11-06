@@ -20,6 +20,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var url: URL?
     var gestureStart: DesignDocument?
     var finishInput: (() -> Void)?
+    var canUndoPendingNudge: (() -> Bool)?
     var needsInitialFit = false
     var fitCanvas: (() -> Void)?
     var zoomCanvas: ((CGFloat) -> Void)?
@@ -28,6 +29,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     }
     var page: DesignPage { document.pages.first { $0.id == pageID } ?? document.pages[0] }
     var isDirty: Bool { history.isDirty(document) }
+    var canUndo: Bool { history.canUndo || (canUndoPendingNudge?() ?? false) }
     var selected: DesignNode? { selection.count == 1 ? selection.first.flatMap { document.node(id: $0) } : nil }
     func editable(_ id: UUID) -> Bool {
         var next: UUID? = id

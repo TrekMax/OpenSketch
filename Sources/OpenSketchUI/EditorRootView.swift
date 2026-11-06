@@ -28,7 +28,7 @@ private struct DocumentEditorView: View {
                     .buttonStyle(.plain).accessibilityIdentifier("tool.\(tool.rawValue)")
                 }
                 Spacer()
-                Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(!session.history.canUndo).accessibilityLabel("撤销").accessibilityIdentifier("action.undo")
+                Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(!session.canUndo).accessibilityLabel("撤销").accessibilityIdentifier("action.undo")
                 Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }.disabled(!session.history.canRedo).accessibilityLabel("重做").accessibilityIdentifier("action.redo")
             }
             .padding(.horizontal, 12)

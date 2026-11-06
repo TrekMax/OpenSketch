@@ -89,7 +89,7 @@ import OpenSketchCore
             menuItem.state = (menuItem.representedObject as? String) == appearance.mode.rawValue ? .on : .off
             return true
         }
-        return switch menuItem.action { case #selector(undo(_:)): activeTextEditor.map { $0.undoManager?.canUndo ?? false } ?? session.history.canUndo; case #selector(redo(_:)): activeTextEditor.map { $0.undoManager?.canRedo ?? false } ?? session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
+        return switch menuItem.action { case #selector(undo(_:)): activeTextEditor.map { $0.undoManager?.canUndo ?? false } ?? session.canUndo; case #selector(redo(_:)): activeTextEditor.map { $0.undoManager?.canRedo ?? false } ?? session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
     }
 
     var documentTabsWidth: CGFloat { min(620, max(160, (window?.frame.width ?? 1280) - 520)) }

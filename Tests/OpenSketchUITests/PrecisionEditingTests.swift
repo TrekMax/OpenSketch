@@ -314,6 +314,161 @@ import OpenSketchCore
         #expect(!f.session.history.canUndo)
     }
 
+    @Test func nativeMainMenuUndoesPendingNudgeOnFirstCommandZBeforeArrowKeyUp() throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let f = fixture(); defer { f.window.close() }
+        let controller = AppController()
+        controller.session.replace(f.session.document)
+        let session = controller.session
+        let canvas = CanvasView(session: session)
+        f.window.contentView = canvas; controller.window = f.window
+        f.window.makeFirstResponder(canvas)
+        session.selection = [session.page.nodes[0].id]
+        let original = session.document
+        controller.makeMenus()
+        canvas.keyDown(with: try key(124, f))
+        #expect(session.history.isEditing)
+        #expect(session.document != original)
+        let bar = try #require(app.mainMenu)
+        let menu = try #require(bar.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(menu.item(withTitle: "撤销"))
+        menu.update()
+        #expect(undo.isEnabled)
+        #expect(session.history.isEditing)
+        #expect(bar.performKeyEquivalent(with: try commandZ()))
+        #expect(session.document == original)
+        #expect(!session.history.isEditing)
+        #expect(!session.history.canUndo)
+        #expect(session.history.canRedo)
+        canvas.keyUp(with: try key(124, f, type: .keyUp))
+        #expect(session.document == original)
+        #expect(!session.history.canUndo)
+        #expect(session.history.canRedo)
+        menu.update()
+        #expect(bar.performKeyEquivalent(with: try commandZ(redo: true)))
+        #expect(session.document.node(id: session.page.nodes[0].id)?.frame.minX == 21)
+    }
+
+    @Test func nativeUndoValidationKeepsUnchangedNudgeAndMouseCreationTransactionsUntouched() throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let f = fixture(); defer { f.window.close() }
+        let controller = AppController()
+        controller.session.replace(f.session.document)
+        let session = controller.session
+        let canvas = CanvasView(session: session)
+        f.window.contentView = canvas; controller.window = f.window
+        f.window.makeFirstResponder(canvas)
+        controller.makeMenus()
+        let bar = try #require(app.mainMenu)
+        let menu = try #require(bar.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(menu.item(withTitle: "撤销"))
+        session.selection = [session.page.nodes[0].id]
+        let original = session.document
+        canvas.keyDown(with: try key(124, f)); canvas.keyDown(with: try key(123, f))
+        for _ in 0..<3 { menu.update(); #expect(!undo.isEnabled) }
+        #expect(session.history.isEditing)
+        #expect(session.document == original)
+        _ = bar.performKeyEquivalent(with: try commandZ())
+        #expect(session.history.isEditing)
+        canvas.keyUp(with: try key(124, f, type: .keyUp)); canvas.keyUp(with: try key(123, f, type: .keyUp))
+        #expect(!session.history.canUndo); #expect(!session.history.canRedo)
+        session.tool = .rectangle
+        canvas.mouseDown(with: try mouse(.leftMouseDown, CGPoint(x: 5, y: 5), f))
+        let creating = session.document
+        menu.update(); #expect(!undo.isEnabled)
+        _ = bar.performKeyEquivalent(with: try commandZ())
+        #expect(session.history.isEditing)
+        #expect(session.document == creating)
+        canvas.keyDown(with: try key(53, f))
+        #expect(session.document == original)
+        #expect(!session.history.canUndo)
+    }
+
+    @Test func nativeUndoValidationDoesNotCommitInlineTextOrBorrowDocumentUndo() throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let f = fixture(); defer { f.window.close() }
+        let controller = AppController()
+        controller.session.replace(f.session.document)
+        let session = controller.session
+        let id = session.page.nodes[0].id
+        session.document.updateNode(id: id) { $0.kind = .text; $0.text = "abc" }
+        session.history = DocumentHistory(document: session.document)
+        session.update(id) { $0.frame.origin.x += 10 }
+        #expect(session.history.canUndo)
+        let original = session.document
+        let canvas = CanvasView(session: session)
+        f.window.contentView = canvas; controller.window = f.window
+        f.window.makeFirstResponder(canvas)
+        controller.makeMenus(); canvas.beginText(id)
+        let editor = try #require(canvas.editor)
+        #expect(f.window.firstResponder === editor)
+        let menu = try #require(app.mainMenu?.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(menu.item(withTitle: "撤销"))
+        for _ in 0..<3 { menu.update(); #expect(undo.isEnabled == (editor.undoManager?.canUndo ?? false)) }
+        #expect(session.history.isEditing)
+        #expect(session.document == original)
+        #expect(canvas.editor === editor)
+        canvas.finishText(commit: false)
+        #expect(session.history.canUndo)
+        #expect(session.document == original)
+    }
+
+    @Test(arguments: [false, true])
+    func unchangedPendingNudgePreservesPriorNativeUndoAndRedo(hasPriorUndo: Bool) throws {
+        let app = NSApplication.shared
+        let previousMenu = app.mainMenu, previousResponder = app.nextResponder
+        defer { app.mainMenu = previousMenu; app.nextResponder = previousResponder }
+        let f = fixture(); defer { f.window.close() }
+        let controller = AppController()
+        let session = controller.session
+        session.replace(f.session.document)
+        let id = session.page.nodes[0].id
+        session.update(id) { $0.frame.origin.x = 30 }
+        if hasPriorUndo { session.update(id) { $0.frame.origin.x = 40 } }
+        session.undo()
+        #expect(session.history.canRedo)
+        let canvas = CanvasView(session: session)
+        f.window.contentView = canvas; controller.window = f.window
+        f.window.makeFirstResponder(canvas)
+        controller.makeMenus()
+        let bar = try #require(app.mainMenu)
+        let menu = try #require(bar.item(withTitle: "编辑")?.submenu)
+        let undo = try #require(menu.item(withTitle: "撤销"))
+        session.selection = [id]
+        let baseline = session.document
+        canvas.keyDown(with: try key(124, f)); canvas.keyDown(with: try key(123, f))
+        #expect(session.document == baseline)
+        for _ in 0..<3 {
+            menu.update()
+            #expect(undo.isEnabled == hasPriorUndo)
+            #expect(session.canUndo == hasPriorUndo)
+            #expect(session.history.isEditing)
+            #expect(session.document == baseline)
+        }
+        if hasPriorUndo {
+            #expect(bar.performKeyEquivalent(with: try commandZ()))
+            #expect(session.document.node(id: id)?.frame.minX == 20)
+        }
+        canvas.keyUp(with: try key(124, f, type: .keyUp)); canvas.keyUp(with: try key(123, f, type: .keyUp))
+        #expect(!session.history.isEditing)
+        #expect(session.history.canRedo)
+        menu.update()
+        #expect(bar.performKeyEquivalent(with: try commandZ(redo: true)))
+        #expect(session.document.node(id: id)?.frame.minX == 30)
+        if hasPriorUndo {
+            menu.update()
+            #expect(bar.performKeyEquivalent(with: try commandZ(redo: true)))
+            #expect(session.document.node(id: id)?.frame.minX == 40)
+        }
+        #expect(!session.history.canRedo)
+    }
+
     private func pixel(_ canvas: CanvasView, x: CGFloat, y: CGFloat) throws -> NSColor {
         let bitmap = try #require(canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds))
         canvas.needsDisplay = true; canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
@@ -339,6 +494,11 @@ import OpenSketchCore
     }
     private func mouse(_ type: NSEvent.EventType, _ point: CGPoint, _ f: (session: EditorSession, canvas: CanvasView, window: NSWindow), flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
         try #require(NSEvent.mouseEvent(with: type, location: f.canvas.convert(point, to: nil), modifierFlags: flags, timestamp: 0, windowNumber: f.window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    }
+    private func commandZ(redo: Bool = false) throws -> NSEvent {
+        let event = try #require(CGEvent(keyboardEventSource: nil, virtualKey: 6, keyDown: true))
+        event.flags = redo ? [.maskCommand, .maskShift] : [.maskCommand]
+        return try #require(NSEvent(cgEvent: event))
     }
     private func key(_ code: UInt16, _ f: (session: EditorSession, canvas: CanvasView, window: NSWindow), flags: NSEvent.ModifierFlags = [], type: NSEvent.EventType = .keyDown, repeatKey: Bool = false) throws -> NSEvent {
         let character: String = switch code { case 123: "\u{F702}"; case 124: "\u{F703}"; case 125: "\u{F701}"; case 126: "\u{F700}"; case 15: "r"; default: "\u{1B}" }

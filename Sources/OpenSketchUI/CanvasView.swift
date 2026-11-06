@@ -40,6 +40,13 @@ struct CanvasHost: NSViewRepresentable {
         clipsToBounds = true
         setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel("设计画布")
         session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishPrecision(); self?.finishGesture() }
+        session.canUndoPendingNudge = { [weak self] in
+            guard let self, case .nudge = self.precision else { return false }
+            // Menu validation must stay pure and must not commit mouse or text input.
+            var candidate = self.session.history
+            candidate.commit(document: self.session.document)
+            return candidate.canUndo
+        }
         session.fitCanvas = { [weak self] in self?.fit() }
         session.zoomCanvas = { [weak self] factor in
             guard let self else { return }
