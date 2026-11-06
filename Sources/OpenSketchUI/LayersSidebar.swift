@@ -34,21 +34,28 @@ struct LayersSidebar: View {
         .onDisappear { session.finishSidebarRename() }
     }
     private func pageRow(_ page: DesignPage) -> some View {
-        let selected = session.pageID == page.id
+        let selected = session.selectedPageIDs.contains(page.id)
         return Group {
             if let edit = session.sidebarRename, edit.request.target == .page(page.id) {
                 SidebarRenameField(session: session, request: edit.request)
-                    .id(edit.request.id).frame(height: 22)
+                    .id(edit.request.id).frame(height: 22).padding(.horizontal, 7)
             } else {
-                Button { session.selectPage(page.id) } label: {
-                    Text(page.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    session.selectPage(page.id, extending: (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift))
+                } label: {
+                    Text(page.name).lineLimit(1)
+                        .fontWeight(session.pageID == page.id ? .semibold : .regular)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 7).frame(height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("page.row.\(page.id)")
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityValue(session.pageID == page.id ? "当前页面" : (selected ? "已选中" : "未选中"))
             }
         }
-        .padding(.horizontal, 7).frame(height: 28)
+        .frame(height: 28)
         .foregroundStyle(selected ? EditorPalette.selectionForeground(colorScheme) : .primary)
         .background(selected ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .contextMenu {
@@ -74,8 +81,8 @@ struct LayersSidebar: View {
                     .accessibilityLabel(collapsed.contains(node.id) ? "展开图层" : "折叠图层")
                     .accessibilityIdentifier("layer.expand.\(node.id)")
                     .accessibilityValue(collapsed.contains(node.id) ? "已折叠" : "已展开")
-                } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
-                Image(systemName: node.kind.layerSymbol).frame(width: 14).accessibilityHidden(true)
+                } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true).allowsHitTesting(false) }
+                Image(systemName: node.kind.layerSymbol).frame(width: 14).accessibilityHidden(true).allowsHitTesting(false)
                 if let edit = session.sidebarRename,
                    edit.request.target == .layer(pageID: session.pageID, nodeID: node.id) {
                     SidebarRenameField(session: session, request: edit.request)
@@ -84,10 +91,12 @@ struct LayersSidebar: View {
                     Button { session.selectLayer(node.id, event: NSApp.currentEvent, fallbackModifiers: NSEvent.modifierFlags) } label: {
                         Text(node.name.isEmpty ? node.kind.layerTitle : node.name).lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("layer.\(node.id)")
                     .accessibilityValue("层级 \(row.depth + 1)")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }.padding(.leading, CGFloat(row.depth) * 14)
             Button { session.change { $0.updateNode(id: node.id) { $0.isVisible.toggle() } } } label: {
@@ -101,6 +110,15 @@ struct LayersSidebar: View {
         .foregroundStyle(selected && colorScheme == .light ? .white : .primary)
         .tint(selected && colorScheme == .light ? .white : .primary)
         .padding(7)
+        .background {
+            // Fill row padding, indentation and icon gaps without intercepting
+            // the name editor or the independent disclosure/visibility/lock buttons.
+            Button { session.selectLayer(node.id, event: NSApp.currentEvent, fallbackModifiers: NSEvent.modifierFlags) } label: {
+                Color.clear.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+        }
         .background(selected ? EditorPalette.layerSelection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .accessibilityElement(children: .contain)
         .contextMenu {

@@ -9,7 +9,11 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
 @MainActor @Observable final class EditorSession {
     var document: DesignDocument
     var history: DocumentHistory
-    var pageID: UUID { willSet { if newValue != pageID { finishInspectorInput() } } }
+    var pageID: UUID {
+        willSet { if newValue != pageID { finishInspectorInput() } }
+        didSet { if oldValue != pageID { selectedPageIDs = [pageID] } }
+    }
+    private(set) var selectedPageIDs: Set<UUID>
     var selection: Set<UUID> = [] { willSet { if newValue != selection { finishInspectorInput() } } }
     var exportOptions = ExportOptions()
     var tool: EditorTool = .select
@@ -37,6 +41,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var setCanvasZoom: ((CGFloat) -> Void)?
     init(document: DesignDocument = .blank()) {
         self.document = document; history = DocumentHistory(document: document); pageID = document.pages[0].id
+        selectedPageIDs = [document.pages[0].id]
     }
     var page: DesignPage { document.pages.first { $0.id == pageID } ?? document.pages[0] }
     var isDirty: Bool { history.isDirty(document) }
@@ -76,7 +81,12 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     func undo() { finishInput?(); if let d = history.undo(current: document) { document = d }; reconcilePage() }
     func redo() { finishInput?(); if let d = history.redo(current: document) { document = d }; reconcilePage() }
     func reconcilePage() {
-        if !document.pages.contains(where: { $0.id == pageID }) { pageID = document.pages[0].id }
+        var selected = selectedPageIDs.intersection(document.pages.map(\.id))
+        if !document.pages.contains(where: { $0.id == pageID }) {
+            pageID = document.pages.first { selected.contains($0.id) }?.id ?? document.pages[0].id
+        }
+        selected.insert(pageID)
+        selectedPageIDs = selected
         let active = Set(SceneGeometry.traversal(in: page).map(\.id))
         selection.formIntersection(active)
     }
@@ -112,11 +122,19 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         let probe = DesignDocument(pages: [DesignPage(nodes: cloned)])
         guard (try? DocumentCodec.encode(probe)) != nil else { message = "剪贴板内容无效"; return }; insert(cloned)
     }
-    func selectPage(_ id: UUID) {
-        guard document.pages.contains(where: { $0.id == id }), id != pageID else { return }
+    func selectPage(_ id: UUID, extending: Bool = false) {
+        guard document.pages.contains(where: { $0.id == id }) else { return }
         finishInput?()
-        pageID = id
-        selection = []
+        var selected = extending ? selectedPageIDs.intersection(document.pages.map(\.id)) : [id]
+        if extending {
+            if selected.contains(id) {
+                if selected.count > 1 { selected.remove(id) }
+            } else { selected.insert(id) }
+        }
+        let active = selected.contains(id) ? id
+            : (selected.contains(pageID) ? pageID : document.pages.first { selected.contains($0.id) }?.id ?? id)
+        if active != pageID { pageID = active; selection = [] }
+        selectedPageIDs = selected
     }
     func setZoom(_ value: CGFloat) {
         guard value.isFinite else { return }
@@ -126,7 +144,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
         else { zoom = value }
     }
     func addPage() { finishInput?(); let p = DesignPage(name: "页面 \(document.pages.count + 1)"); change { $0.pages.append(p) }; pageID = p.id; selection = [] }
-    func replace(_ d: DesignDocument, url: URL? = nil) { finishInput?(); document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
+    func replace(_ d: DesignDocument, url: URL? = nil) { finishInput?(); document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selectedPageIDs = [pageID]; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
     static func exampleDocument() -> DesignDocument {
         let title = DesignNode(name: "问候", kind: .text, frame: CGRect(x: 48, y: 44, width: 480, height: 68), text: "你好，openSketch ✨", fontSize: 36)
         let subtitle = DesignNode(name: "说明", kind: .text, frame: CGRect(x: 48, y: 116, width: 480, height: 56), text: "选择图层，调整颜色与形状。", fontSize: 22)
