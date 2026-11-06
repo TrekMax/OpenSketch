@@ -151,6 +151,36 @@ enum LayerEditing {
 
 `canApply` 是不分配新 UUID、不编码的资格预检，检查选择、可编辑性、操作几何及编组的深度/节点数。它不保证字符串、路径或最终编码体积等全部格式限制通过。`apply` 验证输入并以 `DocumentCodec.encode` 验证结果；因此最终仍可能抛出 `DocumentCodecError`。UI 先结束活动输入，只在文档实际变化时提交一次历史事务，再应用返回的 selection；无效或无变化命令不新增文档历史。
 
+## 框选、平移与移动吸附
+
+```swift
+struct SnapGuide: Equatable, Sendable {
+    var start: CGPoint
+    var end: CGPoint
+    init(start: CGPoint, end: CGPoint)
+}
+struct MovementSnap: Equatable, Sendable {
+    var translation: CGSize
+    var guides: [SnapGuide]
+    init(translation: CGSize, guides: [SnapGuide])
+}
+enum CanvasEditing {
+    static func marqueeSelection(in page: DesignPage, rect: CGRect) -> Set<UUID>
+    static func snapMovement(in page: DesignPage, selection: Set<UUID>,
+                             translation: CGSize, tolerance: CGFloat) -> MovementSnap
+    static func translating(_ document: DesignDocument, pageID: UUID,
+                            selection: Set<UUID>, by delta: CGSize) throws -> DesignDocument
+}
+```
+
+框选需要完整包含可见 frame 几何的页面轴向包围盒。group 是一个单位；frame 完全被包住时选容器，否则检查其孩子。隐藏/锁定祖先阻止整棵子树。祖先 clipping frame 使用实际变换后的凸四边形逐层求交，部分裁剪按剩余几何包围盒判断，完全裁剪的节点不选；group 的 clipsContent 不生效。这里使用 frame 几何，不判断 path 实际轮廓或描边。倒向拖动矩形会标准化；无效、无限或零面积框返回空。
+
+平移使用页面坐标轴，先归一化最外层选中根，再通过父变换的逆矩阵线性部分换算局部位移。全部新原点有限且位于 ±1e9 范围后才批量应用，保留 ID、尺寸和子树；任一有效根或祖先锁定/隐藏时整体拒绝。空选择或有效零位移返回原文档；其他无效情况抛 `LayerEditError`。此接口不在每个拖动事件中编码整份文档，最终持久化仍须通过 `DocumentCodec`。
+
+吸附将所选根的完整世界 frame 包围盒合并，再加输入 translation；参考节点使用裁剪后的可见 bounds，允许锁定可见参考，排除所选根、后代和全部祖先。两轴分别比较 min/mid/max 锚点，选绝对修正最小且不超过 tolerance 的匹配；同距按场景绘制顺序、参考锚点顺序、移动锚点顺序决胜。返回修正后的位移和最多两条页面坐标参考线，无匹配不生成线。无效参数或选择返回原 translation 与空 guides。
+
+调用方必须传入手势起始页面及相对该快照的原始位移，避免累计误差；UI 用 `6 / zoom` 将屏幕点阈值转换为页面距离。Core 不持有吸附开关、视口、历史或临时选择状态。
+
 ## 坐标与命中
 
 ```swift

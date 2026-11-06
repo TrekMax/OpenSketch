@@ -22,6 +22,7 @@ open build/openSketch.app
 - 支持亮色、暗色、跟随系统，默认跟随系统并记住选择。亮色参照 Sketch 的白色面板、浅灰画布与输入框、蓝紫色选中态；暗色面板与画布参照 Compositor 的中性深灰配色。原生紧凑标题工具栏左侧放新建与可滚动文档标签，右侧放缩放控件，去除额外标题行和顶部分隔线。
 - 选择、画板、矩形、椭圆、文字工具；点击/拖动单次创建后回到选择工具（文字在完成/取消编辑后返回）、Shift 多选、移动、右下角缩放手柄、复制与删除。检查器编辑坐标、尺寸、旋转、填充/描边、圆角及文字排版。
 - 编组/取消编组、四种叠放顺序、六种对齐和水平/垂直等间距分布；图层菜单、右键菜单与检查器共用命令，每次有效操作可单独撤销。图层树按层级展开/折叠，Shift 点击切换选择成员；画布普通点击选择外层编组，Option 点击直接选择子层。
+- 空白画布拖框多选，Shift 拖框追加；方向键微调 1 点、Shift 10 点，按住连续微调合并为一次撤销。移动时按边缘/中心吸附并显示临时参考线；底部“吸附”按文档独立开关，Control 拖动临时绕过。
 - 原生 `NSTextView` 文字编辑，保存 Unicode/中文/emoji，缺失字体回退；绘制与 PNG/PDF 导出共用文字布局和变换规则。嵌套/旋转文字使用检查器编辑。
 - 缩放、平移、适合窗口、100% 和网格；拖动/文字编辑事务的撤销重做、取消与脏状态；各文档独立保存状态。新建/打开直接新增标签；关闭标签、窗口或退出时按需提示保存，途中取消保留全部待关闭文档。
 - `.opensketch` 目录包保存可编辑矢量值、稳定 UUID 和有序子节点；内部为 `document.json`，格式 `org.opensketch.document`、版本 1。保存前验证，采用原子包替换；对格式、大小、深度及符号链接有检查。
@@ -40,12 +41,17 @@ Sketch 参考亮色更新通过相同 92 项回归测试、Release/签名检查�
 
 图层组织与排版阶段通过 132 项测试（UI 87、核心 45）、Release/签名检查，以及真实窗口的多选、对齐分布、编组、层级排序、撤销重做和保存重开验证，详见[图层排版记录](docs/development/2026-11-06-layer-layout.md)。
 
+精准编辑阶段通过 171 项测试（UI 110、核心 61）、Release/签名检查，以及真实窗口的框选、1/10 点微调、撤销重做、吸附开关和坐标、保存重开验证。持键组合及参考线像素由原生事件/bitmap 测试覆盖，详见[精准编辑记录](docs/development/2026-11-06-precision-editing.md)。
+
 ## 操作
 
 | 操作 | 快捷键/入口 |
 | --- | --- |
 | 选择 / 画板 / 矩形 / 椭圆 / 文字 | 画布获得焦点时 `V` / `F` / `R` / `O` / `T` |
 | 多选 / 删除 | `Shift` 点击 / `Delete` |
+| 框选 / 追加框选 | 空白画布拖动 / `Shift` 拖动；完全框入才选中 |
+| 微调 / 快速微调 | 画布获得焦点时方向键 1 点 / `Shift` 方向键 10 点 |
+| 移动吸附 / 临时绕过 | 底部“吸附” / 按住 `Control` 拖动 |
 | 完成 / 取消行内文字编辑 | `⌘ Return` / `Escape`；选择工具双击根级未旋转文字再次编辑 |
 | 取消进行中的拖动 | `Escape` |
 | 新建 / 打开 / 保存 / 另存为 | `⌘ N` / `⌘ O` / `⌘ S` / `⇧⌘ S` |
@@ -81,6 +87,7 @@ scripts/benchmark.sh
 
 - [多文档与单次绘制验收](docs/development/2026-11-06-multiple-documents.md)
 - [图层组织与排版验收](docs/development/2026-11-06-layer-layout.md)
+- [精准编辑验收](docs/development/2026-11-06-precision-editing.md)
 - [核心 API 与文件格式](docs/development/core-api.md)
 - [原型实施计划](docs/superpowers/plans/2026-11-06-native-prototype.md)
 - [初期可行性评估](docs/assessment/2026-11-05-feasibility.md)、[Compositor 审计](docs/assessment/compositor-audit.md)、[替代能力矩阵](docs/assessment/replacement-matrix.md)、[Sketch 观察](docs/assessment/sketch-observations.md)（历史评估材料，不代表当前全部能力）
