@@ -74,7 +74,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
             return node
         }
     }
-    func duplicate() { insert(detachedSelection().map { $0.cloned() }) }
+    func duplicate() { finishInput?(); insert(detachedSelection().map { $0.cloned() }) }
     func insert(_ nodes: [DesignNode]) {
         finishInput?(); reconcilePage(); var candidate = document
         do {

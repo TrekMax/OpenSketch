@@ -14,7 +14,7 @@ import OpenSketchCore
         return (storage, manager, container)
     }
     static func measure(_ node: DesignNode) -> CGSize { let (storage, manager, container) = layout(node); return withExtendedLifetime(storage) { manager.usedRect(for: container).size } }
-    static func draw(_ node: DesignNode) { let (storage, manager, container) = layout(node); withExtendedLifetime(storage) { let range = manager.glyphRange(for: container); manager.drawBackground(forGlyphRange: range, at: .zero); manager.drawGlyphs(forGlyphRange: range, at: .zero) } }
+    static func draw(_ node: DesignNode) { guard node.style.fill != nil else { return }; let (storage, manager, container) = layout(node); withExtendedLifetime(storage) { let range = manager.glyphRange(for: container); manager.drawBackground(forGlyphRange: range, at: .zero); manager.drawGlyphs(forGlyphRange: range, at: .zero) } }
 }
 extension RGBAColor {
     var nsColor: NSColor { NSColor(srgbRed: red, green: green, blue: blue, alpha: alpha) }

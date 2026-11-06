@@ -128,3 +128,14 @@ import Testing
     #expect(SceneGeometry.hitTest(CGPoint(x: 50, y: -2), in: DesignPage(nodes: [line])) == line.id)
     #expect(SceneGeometry.hitTest(CGPoint(x: 50, y: -6), in: DesignPage(nodes: [line])) == nil)
 }
+
+@Test func oversizedRadiusUsesHalfTheShorterSideForHitTesting() {
+    let underneath = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+    let rounded = DesignNode(kind: .rectangle, frame: underneath.frame,
+                             style: NodeStyle(fill: .black, cornerRadius: 100))
+    let page = DesignPage(nodes: [underneath, rounded])
+    #expect(SceneGeometry.hitTest(CGPoint(x: 20, y: 2), in: page) == rounded.id)
+    #expect(SceneGeometry.hitTest(CGPoint(x: 1, y: 1), in: page) == underneath.id)
+    #expect(SceneGeometry.hitTest(CGPoint(x: 180, y: 18), in: page) == rounded.id)
+    #expect(SceneGeometry.hitTest(CGPoint(x: 199, y: 19), in: page) == underneath.id)
+}

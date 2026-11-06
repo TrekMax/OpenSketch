@@ -59,6 +59,89 @@ import OpenSketchCore
         let copy = try #require(s.selected)
         #expect(copy.frame.origin == CGPoint(x: 130, y: 240))
     }
+    @Test func sidebarDuplicateCommitsInlineTextBeforeSnapshotAndKeepsUndoBoundaries() throws {
+        let node = DesignNode(kind: .text, text: "A")
+        let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))
+        s.selection = [node.id]
+        let canvas = CanvasView(session: s)
+        canvas.beginText(node.id)
+        let editor = try #require(canvas.editor)
+        editor.string = "B"
+        #expect(s.document.node(id: node.id)?.text == "A")
+
+        s.duplicate() // Same direct session operation as the sidebar button.
+
+        let copy = try #require(s.selected)
+        #expect(copy.id != node.id)
+        #expect(canvas.editor == nil)
+        #expect(s.document.node(id: node.id)?.text == "B")
+        #expect(copy.text == "B")
+        s.undo()
+        #expect(s.page.nodes.count == 1)
+        #expect(s.document.node(id: copy.id) == nil)
+        #expect(s.document.node(id: node.id)?.text == "B")
+        s.undo()
+        #expect(s.document.node(id: node.id)?.text == "A")
+        #expect(!s.history.canUndo)
+        #expect(!s.isDirty)
+    }
+    @Test func textWithoutFillStaysInvisibleInCanvasPNGAndPDFButStillMeasures() throws {
+        let bounds = CGRect(x: 0, y: 0, width: 240, height: 80)
+        let defaultText = DesignNode(kind: .text, frame: bounds, text: "Visible text")
+        var unfilledText = defaultText
+        unfilledText.style.fill = nil
+        // Text stroke is intentionally unsupported, including when the fill is absent.
+        unfilledText.style.stroke = .black
+        unfilledText.style.strokeWidth = 4
+        #expect(defaultText.style.fill == .black)
+        #expect(TextLayout.measure(unfilledText) == TextLayout.measure(defaultText))
+        #expect(TextLayout.measure(unfilledText).height > 0)
+
+        for node in [defaultText, unfilledText] {
+            let page = DesignPage(nodes: [node])
+            let canvas = try bitmap(size: bounds.size) { CanvasRenderer.draw(page: page, in: $0) }
+            let png = try #require(NSBitmapImageRep(data: Exporter.png(page: page, bounds: bounds)))
+            let pdfData = try Exporter.pdf(page: page, bounds: bounds)
+            let provider = try #require(CGDataProvider(data: pdfData as CFData))
+            let pdfDocument = try #require(CGPDFDocument(provider))
+            let pdfPage = try #require(pdfDocument.page(at: 1))
+            let pdf = try bitmap(size: bounds.size) { $0.drawPDFPage(pdfPage) }
+            for image in [canvas, png, pdf] {
+                #expect(hasVisiblePixels(image) == (node.style.fill != nil))
+            }
+        }
+    }
+    @Test func oversizedRoundedRectangleDrawsUniformClampedCorners() throws {
+        let node = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 200, height: 20),
+                              style: NodeStyle(fill: .black, cornerRadius: 100))
+        let page = DesignPage(nodes: [node])
+        let png = try Exporter.png(page: page, bounds: node.frame)
+        let image = try #require(NSBitmapImageRep(data: png))
+        #expect(SceneGeometry.hitTest(CGPoint(x: 20, y: 2), in: page) == node.id)
+        #expect(try #require(image.colorAt(x: 20, y: 2)).alphaComponent > 0.99)
+        #expect(SceneGeometry.hitTest(CGPoint(x: 1, y: 1), in: page) == nil)
+        #expect(try #require(image.colorAt(x: 1, y: 1)).alphaComponent < 0.01)
+    }
+
+    private func bitmap(size: CGSize, draw: (CGContext) -> Void) throws -> NSBitmapImageRep {
+        let image = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let graphics = try #require(NSGraphicsContext(bitmapImageRep: image))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let context = graphics.cgContext
+        context.clear(CGRect(origin: .zero, size: size))
+        context.translateBy(x: 0, y: size.height)
+        context.scaleBy(x: 1, y: -1)
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        draw(context)
+        return image
+    }
+    private func hasVisiblePixels(_ image: NSBitmapImageRep) -> Bool {
+        for y in 0..<image.pixelsHigh {
+            for x in 0..<image.pixelsWide where (image.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.01 { return true }
+        }
+        return false
+    }
     @Test func groupOpacityCompositesOverlappingChildrenOnce() throws {
         let red = NodeStyle(fill: RGBAColor(red: 1, green: 0, blue: 0))
         let a = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 60, height: 40), style: red)

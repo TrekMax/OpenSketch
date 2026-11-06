@@ -34,10 +34,11 @@ import OpenSketchCore
         c.concatenate(SceneGeometry.localTransform(for: node)); c.setAlpha(node.style.opacity)
         c.beginTransparencyLayer(auxiliaryInfo: nil); defer { c.endTransparencyLayer() }
         let rect = CGRect(origin: .zero, size: node.frame.size)
+        let radius = min(node.style.cornerRadius, min(rect.width, rect.height) / 2)
         let path: CGPath = switch node.kind {
         case .ellipse: CGPath(ellipseIn: rect, transform: nil)
         case .path: SceneGeometry.cgPath(for: node.path)
-        default: CGPath(roundedRect: rect, cornerWidth: min(node.style.cornerRadius, rect.width/2), cornerHeight: min(node.style.cornerRadius, rect.height/2), transform: nil)
+        default: CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         }
         if node.kind == .text { TextLayout.draw(node) }
         else {
