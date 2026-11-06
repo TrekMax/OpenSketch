@@ -66,13 +66,13 @@ public enum LayerEditing {
 }
 ```
 
-- [ ] 写失败测试并运行 `swift test --filter LayerEditingTests`。包括如下明确几何例：矩形 A=(10,20,20,30)、B=(70,80,40,20)，编组容器=(10,20,100,80)，子层本地原点分别=(0,0)、(60,60)，取消编组还原。选择 A 与 B 做左对齐后两者 x=10；水平居中后中心 x=60；底对齐后 maxY=100。
-- [ ] 覆盖三个不同宽度节点 x/width=(0,20)、(40,30)、(100,40)，等间距为25，中间 x=45，端点保持不变；加垂直例、重叠负间距、同坐标稳定排序。
-- [ ] 实现纯值命令。group ≥2 个同父根；ungroup ≥1 个同父 group；order ≥1 个同父根；align ≥2 个根；distribute ≥3 个根。全部验证后再修改候选文档，返回新 selection。
-- [ ] 编组包围盒在父局部坐标中计算，每个孩子只减去新编组原点，rotation 不变。取消编组将孩子中心应用 group 的 localTransform，保留孩子尺寸，rotation 加上 group.rotation；子孙保持局部值。以多个测试点的世界坐标不变验证嵌套旋转。
-- [ ] 叠放顺序按 children/nodes 的底到顶数组处理；front/back 稳定分区，forward/backward 每次让每段选中层越过一个相邻未选中层，保持选中项彼此顺序。边缘无变化返回相同文档。
-- [ ] 对齐/分布按世界包围盒算位移，再用父 worldTransform 的逆矩阵将向量转回局部坐标。确保有限几何，候选文档通过 `DocumentCodec.encode` 验证；任何错误原文档不变。
-- [ ] 运行定向测试和完整 `swift test`，记录红/绿证据、无效选择/锁定/隐藏/跨父编组失败、parent+child 去重及保存重开回归。只提交本任务源码与测试，使用 `git commit -s` 中文说明。
+- [x] 写失败测试并运行 `swift test --filter LayerEditingTests`。包括如下明确几何例：矩形 A=(10,20,20,30)、B=(70,80,40,20)，编组容器=(10,20,100,80)，子层本地原点分别=(0,0)、(60,60)，取消编组还原。选择 A 与 B 做左对齐后两者 x=10；水平居中后中心 x=60；底对齐后 maxY=100。
+- [x] 覆盖三个不同宽度节点 x/width=(0,20)、(40,30)、(100,40)，等间距为25，中间 x=45，端点保持不变；加垂直例、重叠负间距、同坐标稳定排序。
+- [x] 实现纯值命令。group ≥2 个同父根；ungroup ≥1 个同父 group；order ≥1 个同父根；align ≥2 个根；distribute ≥3 个根。全部验证后再修改候选文档，返回新 selection。
+- [x] 编组包围盒在父局部坐标中计算，每个孩子只减去新编组原点，rotation 不变。取消编组将孩子中心应用 group 的 localTransform，保留孩子尺寸，rotation 加上 group.rotation；子孙保持局部值。以多个测试点的世界坐标不变验证嵌套旋转。
+- [x] 叠放顺序按 children/nodes 的底到顶数组处理；front/back 稳定分区，forward/backward 每次让每段选中层越过一个相邻未选中层，保持选中项彼此顺序。边缘无变化返回相同文档。
+- [x] 对齐/分布按世界包围盒算位移，再用父 worldTransform 的逆矩阵将向量转回局部坐标。确保有限几何，候选文档通过 `DocumentCodec.encode` 验证；任何错误原文档不变。
+- [x] 运行定向测试和完整 `swift test`，记录红/绿证据、无效选择/锁定/隐藏/跨父编组失败、parent+child 去重及保存重开回归。只提交本任务源码与测试，使用 `git commit -s` 中文说明。
 
 ### Task 2: 会话事务、原生菜单和图层树
 
@@ -96,13 +96,13 @@ extension EditorSession {
 }
 ```
 
-- [ ] 先写会话/菜单测试：编组后 selection 是新组，undo 恢复原节点顺序、redo 恢复编组；每个命令只一条历史；无效命令不变；切换文档后的菜单只修改当前文档；进行中的文字事务先提交，再执行图层命令。
-- [ ] `perform` 先 `finishInput?()`，调用纯值命令，文档不同才 `change { $0 = result.document }`，随后更新 selection；错误用状态栏中文消息说明。菜单禁用和检查器禁用来自 `canPerform`。读能力查询不得创建 UUID 或改变文档/历史。
-- [ ] 添加独立“图层”菜单：编组 ⌘G、取消编组 ⇧⌘G、上移一层 ⌘]、下移一层 ⌘[、置于顶层 ⇧⌘]、置于底层 ⇧⌘[；“对齐”子菜单六项和“等距分布”子菜单两项。快捷键正在编辑普通文本字段时禁用图层命令，避免吞掉文本快捷键；按钮主动执行可提交行内文字。
-- [ ] 检查器顶部展示 `LayerActionsView`：编组/取消编组、层级菜单，以及六个对齐和两个分布按钮，采用现有主题，提供中文帮助及稳定 AX ID：`layer.group`、`layer.ungroup`、`layer.order.<rawValue>`、`layer.align.<rawValue>`、`layer.distribute.<rawValue>`。
-- [ ] 图层树按每层 children.reversed() 呈现，父行在子行之前；使用独立 row 数据（id、depth、node）生成展开列表，折叠状态为视图局部状态。容器行显示展开按钮及类型图标；保留现有 `layer.<UUID>`、visibility、lock 标识。Shift 点击采用成员切换语义，右键菜单调用同一套会话命令，不重复实现树修改。
-- [ ] Canvas 普通命中提升为最外层 group，Option 命中保留最深层；保持 frame 子项点击行为和文字双击编辑兼容。group 禁用缩放手柄命中与绘制；检查器 group 宽/高只读，并隐藏不适用于普通编组的填充/描边编辑。X/Y、旋转、重命名可用。
-- [ ] 覆盖 GUI 宿主测试：树嵌套深度/父子顺序、菜单标题/快捷键/禁用、group 与 Option 直选命中、原生输入不被图层快捷键抢占；运行定向与完整 `swift test`。只提交本任务文件。
+- [x] 先写会话/菜单测试：编组后 selection 是新组，undo 恢复原节点顺序、redo 恢复编组；每个命令只一条历史；无效命令不变；切换文档后的菜单只修改当前文档；进行中的文字事务先提交，再执行图层命令。
+- [x] `perform` 先 `finishInput?()`，调用纯值命令，文档不同才 `change { $0 = result.document }`，随后更新 selection；错误用状态栏中文消息说明。菜单禁用和检查器禁用来自 `canPerform`。读能力查询不得创建 UUID 或改变文档/历史。
+- [x] 添加独立“图层”菜单：编组 ⌘G、取消编组 ⇧⌘G、上移一层 ⌘]、下移一层 ⌘[、置于顶层 ⇧⌘]、置于底层 ⇧⌘[；“对齐”子菜单六项和“等距分布”子菜单两项。快捷键正在编辑普通文本字段时禁用图层命令，避免吞掉文本快捷键；按钮主动执行可提交行内文字。
+- [x] 检查器顶部展示 `LayerActionsView`：编组/取消编组、层级菜单，以及六个对齐和两个分布按钮，采用现有主题，提供中文帮助及稳定 AX ID：`layer.group`、`layer.ungroup`、`layer.order.<rawValue>`、`layer.align.<rawValue>`、`layer.distribute.<rawValue>`。
+- [x] 图层树按每层 children.reversed() 呈现，父行在子行之前；使用独立 row 数据（id、depth、node）生成展开列表，折叠状态为视图局部状态。容器行显示展开按钮及类型图标；保留现有 `layer.<UUID>`、visibility、lock 标识。Shift 点击采用成员切换语义，右键菜单调用同一套会话命令，不重复实现树修改。
+- [x] Canvas 普通命中提升为最外层 group，Option 命中保留最深层；保持 frame 子项点击行为和文字双击编辑兼容。group 禁用缩放手柄命中与绘制；检查器 group 宽/高只读，并隐藏不适用于普通编组的填充/描边编辑。X/Y、旋转、重命名可用。
+- [x] 覆盖 GUI 宿主测试：树嵌套深度/父子顺序、菜单标题/快捷键/禁用、group 与 Option 直选命中、原生输入不被图层快捷键抢占；运行定向与完整 `swift test`。只提交本任务文件。
 
 ### Task 3: 发布包与实际工作流验收
 
@@ -113,6 +113,6 @@ extension EditorSession {
 
 **Interfaces:** 使用已完成的 Task 1/2 API 和实际菜单/检查器入口，不添加新功能。
 
-- [ ] 检查范围和源码 diff；运行 `swift test`、`scripts/build.sh release`、`codesign --verify --deep --strict build/openSketch.app`、`plutil -lint build/openSketch.app/Contents/Info.plist`、`git diff --check`。
-- [ ] 用原生 GUI 保留用户当前文档，重启新版，创建独立验收文档；实际测试多选、编组/展开、移动、取消编组、对齐/分布和叠放顺序，再验证撤销/重做、保存重开。
-- [ ] 恢复用户原设计和外观。更新 README 功能/快捷键/限制，记录 API 语义、测试总数、GUI 验证和未验证边界；所有文档内容由实际结果填写。中文签署本地提交，保持工作区干净。
+- [x] 检查范围和源码 diff；运行 `swift test`、`scripts/build.sh release`、`codesign --verify --deep --strict build/openSketch.app`、`plutil -lint build/openSketch.app/Contents/Info.plist`、`git diff --check`。
+- [x] 用原生 GUI 保留用户当前文档，重启新版，创建独立验收文档；实际测试多选、编组/展开、移动、取消编组、对齐/分布和叠放顺序，再验证撤销/重做、保存重开。
+- [x] 恢复用户原设计和外观。更新 README 功能/快捷键/限制，记录 API 语义、测试总数、GUI 验证和未验证边界；所有文档内容由实际结果填写。中文签署本地提交，保持工作区干净。

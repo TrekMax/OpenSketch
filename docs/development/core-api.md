@@ -111,6 +111,46 @@ enum DocumentOperationError: Error, Equatable {
 
 children/nodes 从底到顶排序。insert 的 nil 索引表示追加到最顶；nil parentID 表示页面根节点。指定父节点必须属于目标页且为 frame/group；整个插入子树的 ID 不能与现有文档/页面/节点或自身重复。失败不改变文档。remove 返回包含全部后代的原节点。update 对首个匹配节点应用闭包，未找到返回 false；调用者负责修改值的有效性，统一在保存时验证。父查找对根节点和未找到都返回 nil，可结合 node(id:) 区分。操作本身不阻止显式修改锁定节点；UI 应用祖先锁定/可见约束。
 
+## 图层组织与排版
+
+```swift
+enum LayerOrder: String, CaseIterable, Sendable {
+    case forward, backward, front, back
+}
+enum LayerAlignment: String, CaseIterable, Sendable {
+    case left, horizontalCenter, right, top, verticalCenter, bottom
+}
+enum LayerAxis: String, CaseIterable, Sendable { case horizontal, vertical }
+enum LayerCommand: Equatable, Sendable {
+    case group, ungroup
+    case order(LayerOrder), align(LayerAlignment), distribute(LayerAxis)
+}
+struct LayerEditResult: Equatable, Sendable {
+    var document: DesignDocument
+    var selection: Set<UUID>
+    init(document: DesignDocument, selection: Set<UUID>)
+}
+enum LayerEditError: Error, Equatable {
+    case invalidSelection, differentParents, lockedOrHidden, styledGroup, invalidGeometry
+}
+enum LayerEditing {
+    static func canApply(_ command: LayerCommand, to document: DesignDocument,
+                         pageID: UUID, selection: Set<UUID>) -> Bool
+    static func apply(_ command: LayerCommand, to document: DesignDocument,
+                      pageID: UUID, selection: Set<UUID>) throws -> LayerEditResult
+}
+```
+
+命令是纯值变换，失败不修改输入。全部选中 ID 必须属于指定页；选中父子项时只处理最外层选中根。任一有效根或其祖先锁定/隐藏会阻止整个命令，不能静默过滤成子集。选中可编辑父容器时，其锁定/隐藏后代仍作为内容保留。
+
+编组要求至少两个同父根；取消编组要求至少一个同父 group；重排要求至少一个同父根。对齐至少两个根、分布至少三个根，允许同页跨父容器。编组在父坐标中取旋转 frame 的包围盒，子层原点减去组原点，保留原 UUID、rotation 和子树。新组放在原最前选中层的位置，未选中项彼此顺序保持不变。取消编组将子层中心应用组的局部变换，累加旋转并保持尺寸；带 fill、stroke 或 opacity != 1 的组被拒绝，以免丢失合成外观。
+
+叠放数组仍从底到顶。置顶/置底使用稳定分区，上移/下移让每段选中层跨过一个相邻未选中层；边缘无变化返回相同文档。对齐以所有选中根的页面轴向包围盒并集为目标；包围盒取变换后的 frame 四角，不包含描边。将页面位移通过父变换的逆矩阵换算为局部位移，因此支持旋转父容器。
+
+分布按空间位置稳定排序，使相邻包围盒之间的间隙相等，固定排序首尾节点，允许负间隙；同坐标按原绘制顺序决胜。group 使用自身存储的 frame，本阶段没有整体缩放或子层变化后自动重算编组边界。
+
+`canApply` 是不分配新 UUID、不编码的资格预检，检查选择、可编辑性、操作几何及编组的深度/节点数。它不保证字符串、路径或最终编码体积等全部格式限制通过。`apply` 验证输入并以 `DocumentCodec.encode` 验证结果；因此最终仍可能抛出 `DocumentCodecError`。UI 先结束活动输入，只在文档实际变化时提交一次历史事务，再应用返回的 selection；无效或无变化命令不新增文档历史。
+
 ## 坐标与命中
 
 ```swift
