@@ -109,6 +109,23 @@ import OpenSketchCore
         #expect(view.frame.width >= 160)
     }
 
+    @Test func compactZoomToolbarFitsTheMinimumWindowAlongsideDocumentTabs() throws {
+        let controller = makeController()
+        defer { controller.window.close() }
+        controller.window.setContentSize(CGSize(width: 980, height: 700))
+        let toolbar = NSToolbar(identifier: "workspace-budget-test")
+        var occupiedWidth: CGFloat = 0
+        for identifier in controller.toolbarDefaultItemIdentifiers(toolbar) where identifier != .flexibleSpace {
+            let item = try #require(controller.toolbar(toolbar, itemForItemIdentifier: identifier, willBeInsertedIntoToolbar: true))
+            let view = try #require(item.view)
+            view.layoutSubtreeIfNeeded()
+            occupiedWidth += max(view.frame.width, view.fittingSize.width) + 16
+        }
+        // Reserve 100 pt for titlebar controls and outer margins at the 980 pt minimum.
+        #expect(occupiedWidth <= 880)
+        #expect(controller.documentTabsWidth >= 160)
+    }
+
     @Test func hostedCanvasChangesIdentityWhenTheActiveDocumentChanges() throws {
         let controller = makeController()
         let first = controller.workspace.current

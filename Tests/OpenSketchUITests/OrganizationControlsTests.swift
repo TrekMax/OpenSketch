@@ -26,7 +26,8 @@ import OpenSketchCore
         let toolbar = NSToolbar(identifier: "organization-test")
         #expect(controller.toolbarDefaultItemIdentifiers(toolbar).contains(.init("view.zoomSlider")))
         let item = try #require(controller.toolbar(toolbar, itemForItemIdentifier: .init("view.zoomSlider"), willBeInsertedIntoToolbar: true))
-        #expect(item.view?.frame.size == CGSize(width: 160, height: 32))
+        #expect(item.view?.frame.size == CGSize(width: 176, height: 32))
+        #expect(!controller.toolbarDefaultItemIdentifiers(toolbar).contains(.init("view.fit")))
     }
     @Test func selectingAnotherPageClearsSelectionWithoutAddingHistory() {
         let node = DesignNode(kind: .rectangle)
@@ -205,22 +206,35 @@ import OpenSketchCore
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         let control = try #require(slider(in: host))
+        #expect(control.frame.width == 96)
+        let menu = try #require(zoomMenu(in: host))
+        #expect(menu.accessibilityIdentifier() == "view.zoomMenu")
+        #expect(menu.title == "100%")
         #expect(control.isContinuous)
         #expect(control.accessibilityIdentifier() == "view.zoomSlider")
         #expect(control.accessibilityLabel() == "缩放")
         control.doubleValue = 1
         control.sendAction(control.action, to: control.target)
         #expect(first.zoom == 2)
+        #expect(menu.title == "200%")
         first.zoomCanvas?(0.5)
         refresh(host)
         #expect(abs(control.doubleValue) < 0.0001)
         #expect(control.accessibilityValue() as? String == "100%")
+        #expect(menu.title == "100%")
+        controller.zoomIn(nil)
+        refresh(host)
+        #expect(menu.title == "125%")
+        controller.zoomOut(nil)
+        refresh(host)
+        #expect(menu.title == "100%")
         controller.newDocument(nil)
         let second = controller.session
         second.zoom = 4
         refresh(host)
         let current = try #require(slider(in: host))
         #expect(abs(current.doubleValue - 2) < 0.0001)
+        #expect(menu.title == "400%")
         current.doubleValue = -1
         current.sendAction(current.action, to: current.target)
         #expect(second.zoom == 0.5)
@@ -228,7 +242,66 @@ import OpenSketchCore
         controller.actualSize(nil)
         refresh(host)
         #expect(abs(current.doubleValue) < 0.0001)
+        #expect(menu.title == "100%")
         #expect(!first.isDirty && !second.isDirty)
+        #expect(!first.history.canUndo && !second.history.canUndo)
+    }
+
+    @Test(arguments: [("25%", CGFloat(0.25)), ("50%", 0.5), ("100%", 1), ("200%", 2), ("400%", 4), ("800%", 8), ("实际尺寸（100%）", 1)])
+    func zoomMenuPresetsRouteToTheCurrentDocumentAndPreserveItsCanvasCenter(title: String, expected: CGFloat) throws {
+        _ = NSApplication.shared
+        let workspace = DocumentWorkspace()
+        let first = workspace.current.session
+        let host = NSHostingView(rootView: ZoomControlView(workspace: workspace))
+        let window = offscreenWindow()
+        defer { window.close() }
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let menu = try #require(zoomMenu(in: host))
+        let command = try #require(menu.menu?.items.dropFirst().first { $0.title == title })
+        workspace.newDocument()
+        let second = workspace.current.session
+        let canvas = CanvasView(session: second)
+        canvas.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        second.zoom = 2
+        second.pan = CGPoint(x: 20, y: 30)
+        // Activate the already-created menu before SwiftUI rebinds the new document.
+        #expect(NSApp.sendAction(try #require(command.action), to: command.target, from: command))
+        #expect(second.zoom == expected)
+        #expect(first.zoom == 1)
+        #expect(abs((200 - second.pan.x) / second.zoom - 90) < 0.0001)
+        #expect(abs((150 - second.pan.y) / second.zoom - 60) < 0.0001)
+        refresh(host)
+        #expect(menu.title == "\(Int(expected * 100))%")
+        #expect(!first.isDirty && !second.isDirty)
+        #expect(!first.history.canUndo && !second.history.canUndo)
+    }
+
+    @Test func zoomMenuFitUsesTheCurrentCanvas() throws {
+        _ = NSApplication.shared
+        let workspace = DocumentWorkspace()
+        let first = workspace.current.session
+        let host = NSHostingView(rootView: ZoomControlView(workspace: workspace))
+        let window = offscreenWindow()
+        defer { window.close() }
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let menu = try #require(zoomMenu(in: host))
+        let command = try #require(menu.menu?.item(withTitle: "适合画布"))
+        workspace.newDocument()
+        let node = DesignNode(kind: .rectangle, frame: CGRect(x: 100, y: 100, width: 200, height: 100))
+        let second = workspace.current.session
+        second.replace(DesignDocument(pages: [DesignPage(nodes: [node])]))
+        let canvas = CanvasView(session: second)
+        canvas.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        #expect(NSApp.sendAction(try #require(command.action), to: command.target, from: command))
+        #expect(abs(second.zoom - 1.6) < 0.0001)
+        #expect(second.pan == CGPoint(x: -120, y: -90))
+        #expect(first.zoom == 1)
+        refresh(host)
+        #expect(menu.title == "160%")
+        #expect(!first.isDirty && !second.isDirty)
+        #expect(!first.history.canUndo && !second.history.canUndo)
     }
 
     @Test func zoomSliderFloatingFeedbackIsLiveNonactivatingAndCleansUp() throws {
@@ -319,6 +392,11 @@ import OpenSketchCore
         let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 400, height: 300), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         return window
+    }
+
+    private func zoomMenu(in view: NSView) -> NSPopUpButton? {
+        if let menu = view as? NSPopUpButton { return menu }
+        return view.subviews.lazy.compactMap { zoomMenu(in: $0) }.first
     }
 
     private func slider(in view: NSView) -> NSSlider? {

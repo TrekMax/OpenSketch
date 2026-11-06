@@ -108,7 +108,7 @@ import OpenSketchCore
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.fit"), .init("view.zoomSlider"), .init("view.zoomIn"), .init("view.zoomOut")]
+        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.zoomSlider"), .init("view.zoomIn"), .init("view.zoomOut")]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -129,13 +129,10 @@ import OpenSketchCore
             host.frame = CGRect(x: 0, y: 0, width: documentTabsWidth, height: 32)
             documentTabsHost = host
             item.view = host
-        case "view.fit":
-            item.label = "适合"; item.toolTip = "画布适合窗口（⌘1）"
-            item.action = #selector(fit(_:))
         case "view.zoomSlider":
             item.label = "缩放"; item.toolTip = "画布缩放"
             let host = NSHostingView(rootView: ZoomControlView(workspace: workspace))
-            host.frame = CGRect(x: 0, y: 0, width: 160, height: 32)
+            host.frame = CGRect(x: 0, y: 0, width: 176, height: 32)
             item.view = host
         case "view.zoomIn":
             item.label = "放大"; item.toolTip = "放大画布"

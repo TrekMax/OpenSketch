@@ -8,27 +8,91 @@ struct ZoomControlView: View {
 
     var body: some View {
         let session = workspace.current.session
-        ZoomSliderHost(workspace: workspace, zoom: session.zoom)
-            .frame(width: 160, height: 32)
+        ZoomControlsHost(workspace: workspace, zoom: session.zoom)
+            .frame(width: 176, height: 32)
     }
 }
 
-private struct ZoomSliderHost: NSViewRepresentable {
+private struct ZoomControlsHost: NSViewRepresentable {
     let workspace: DocumentWorkspace
     let zoom: CGFloat
 
-    func makeNSView(context: Context) -> ZoomSlider {
-        let slider = ZoomSlider(frame: .zero)
-        slider.bind(to: workspace, zoom: zoom)
-        return slider
+    func makeNSView(context: Context) -> ZoomControls {
+        let controls = ZoomControls(frame: .zero)
+        controls.bind(to: workspace, zoom: zoom)
+        return controls
     }
 
-    func updateNSView(_ slider: ZoomSlider, context: Context) {
-        slider.bind(to: workspace, zoom: zoom)
+    func updateNSView(_ controls: ZoomControls, context: Context) {
+        controls.bind(to: workspace, zoom: zoom)
     }
 
-    static func dismantleNSView(_ slider: ZoomSlider, coordinator: ()) {
-        slider.setEditing(false)
+    static func dismantleNSView(_ controls: ZoomControls, coordinator: ()) {
+        controls.slider.setEditing(false)
+    }
+}
+
+/// Native controls share the slider's observation so the persistent percentage
+/// and drag feedback always show the same value, including same-runloop changes.
+@MainActor private final class ZoomControls: NSView {
+    let slider = ZoomSlider(frame: CGRect(x: 0, y: 0, width: 96, height: 32))
+    private let zoomMenu = ZoomMenuButton(frame: CGRect(x: 104, y: 3, width: 72, height: 26), pullsDown: true)
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(slider)
+        addSubview(zoomMenu)
+        slider.percentageDidChange = { [weak zoomMenu] percentage in
+            zoomMenu?.title = percentage
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+
+    func bind(to workspace: DocumentWorkspace, zoom: CGFloat) {
+        zoomMenu.workspace = workspace
+        slider.bind(to: workspace, zoom: zoom)
+    }
+}
+
+@MainActor private final class ZoomMenuButton: NSPopUpButton {
+    weak var workspace: DocumentWorkspace?
+
+    override init(frame buttonFrame: NSRect, pullsDown flag: Bool) {
+        super.init(frame: buttonFrame, pullsDown: flag)
+        bezelStyle = .texturedRounded
+        font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        setAccessibilityIdentifier("view.zoomMenu")
+        setAccessibilityLabel("缩放比例")
+        toolTip = "缩放比例与画布适合"
+        let menu = NSMenu()
+        // A pull-down uses its first item as the always-visible button title.
+        menu.addItem(withTitle: "100%", action: nil, keyEquivalent: "")
+        let fit = menu.addItem(withTitle: "适合画布", action: #selector(fitCanvas(_:)), keyEquivalent: "")
+        fit.target = self
+        addZoomItem(title: "实际尺寸（100%）", value: 1, to: menu)
+        menu.addItem(.separator())
+        for percent in [25, 50, 100, 200, 400, 800] {
+            addZoomItem(title: "\(percent)%", value: Double(percent) / 100, to: menu)
+        }
+        self.menu = menu
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+
+    private func addZoomItem(title: String, value: Double, to menu: NSMenu) {
+        let item = menu.addItem(withTitle: title, action: #selector(setZoom(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = value
+    }
+
+    @objc private func fitCanvas(_ sender: NSMenuItem) {
+        workspace?.current.session.fitCanvas?()
+    }
+
+    @objc private func setZoom(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Double else { return }
+        workspace?.current.session.setZoom(CGFloat(value))
     }
 }
 
@@ -36,6 +100,7 @@ private struct ZoomSliderHost: NSViewRepresentable {
 /// feedback escape the compact toolbar without taking focus or intercepting drag.
 @MainActor final class ZoomSlider: NSSlider {
     private var onChange: ((CGFloat) -> Void)?
+    var percentageDidChange: ((String) -> Void)?
     private var documentID: UUID?
     private weak var workspace: DocumentWorkspace?
     private(set) var isEditing = false
@@ -117,6 +182,7 @@ private struct ZoomSliderHost: NSViewRepresentable {
 
     private func updatePercentage() {
         percentageLabel.stringValue = percentage
+        percentageDidChange?(percentage)
         if isEditing { positionPercentage() }
     }
 
