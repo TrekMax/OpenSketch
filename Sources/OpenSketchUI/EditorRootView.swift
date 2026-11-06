@@ -2,6 +2,16 @@ import SwiftUI
 import OpenSketchCore
 
 struct EditorRootView: View {
+    @Bindable var workspace: DocumentWorkspace
+    @Bindable var appearance: AppAppearance
+    var body: some View {
+        let document = workspace.current
+        DocumentEditorView(session: document.session, appearance: appearance)
+            .id(document.id)
+    }
+}
+
+private struct DocumentEditorView: View {
     @Bindable var session: EditorSession
     @Bindable var appearance: AppAppearance
     @Environment(\.colorScheme) private var colorScheme
@@ -41,23 +51,5 @@ struct EditorRootView: View {
         .background(Color(nsColor: EditorPalette.panel))
         .tint(.primary)
         .frame(minWidth: 980, minHeight: 620)
-    }
-}
-
-struct DocumentTitleView: View {
-    @Bindable var session: EditorSession
-    @Environment(\.colorScheme) private var colorScheme
-    var body: some View {
-        HStack(spacing: 6) {
-            if session.isDirty { Circle().fill(.secondary).frame(width: 6, height: 6).accessibilityLabel("未保存") }
-            Text(session.url?.deletingPathExtension().lastPathComponent ?? "未命名")
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1).truncationMode(.middle)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 5)
-        .background(EditorPalette.selection(colorScheme), in: Capsule())
-        .overlay(Capsule().strokeBorder(.primary.opacity(0.18), lineWidth: 1))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("document.title")
     }
 }

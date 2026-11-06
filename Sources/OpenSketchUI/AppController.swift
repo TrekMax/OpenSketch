@@ -4,10 +4,13 @@ import UniformTypeIdentifiers
 import OpenSketchCore
 
 @MainActor public final class AppController: NSResponder, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation, NSToolbarDelegate {
-    let session = EditorSession()
+    let workspace = DocumentWorkspace()
+    var session: EditorSession { workspace.current.session }
     let appearance = AppAppearance()
     static let documentType = UTType(filenameExtension: "opensketch", conformingTo: .package) ?? .package
     var window: NSWindow!
+    var documentTabsHost: NSHostingView<DocumentTabsView>?
+    var closeDecision: ((EditorDocument) -> DocumentCloseDecision)?
     public override init() { super.init() }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -24,37 +27,13 @@ import OpenSketchCore
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
-        window.contentView = NSHostingView(rootView: EditorRootView(session: session, appearance: appearance)); window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        window.contentView = NSHostingView(rootView: EditorRootView(workspace: workspace, appearance: appearance)); window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         observeDocument()
     }
     func observeDocument() {
-        withObservationTracking { window?.isDocumentEdited = session.isDirty; window?.title = "\(session.url?.deletingPathExtension().lastPathComponent ?? "未命名") — openSketch" } onChange: { [weak self] in Task { @MainActor in self?.observeDocument() } }
+        withObservationTracking { window?.isDocumentEdited = session.isDirty; window?.title = "\(workspace.current.title) — openSketch" } onChange: { [weak self] in Task { @MainActor in self?.observeDocument() } }
     }
-    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil); return true }
-    public func windowShouldClose(_ sender: NSWindow) -> Bool { mayDiscard() }
-    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply { mayDiscard() ? .terminateNow : .terminateCancel }
-    public func application(_ sender: NSApplication, openFiles filenames: [String]) { if let path = filenames.first { openURL(URL(fileURLWithPath: path)) }; sender.reply(toOpenOrPrint: .success) }
     func error(_ error: Error) { let alert = NSAlert(error: error); alert.runModal() }
-    func mayDiscard() -> Bool {
-        session.finishInput?(); guard session.isDirty else { return true }
-        let alert = NSAlert(); alert.messageText = "保存对文档的更改？"; alert.informativeText = "未保存的更改将丢失。"; alert.addButton(withTitle: "保存"); alert.addButton(withTitle: "取消"); alert.addButton(withTitle: "不保存")
-        switch alert.runModal() { case .alertFirstButtonReturn: return saveDocument(forcePanel: false); case .alertThirdButtonReturn: return true; default: return false }
-    }
-    @objc func newDocument(_ sender: Any?) { if mayDiscard() { session.replace(.blank()); window.makeKeyAndOrderFront(nil) } }
-    @objc func openExample(_ sender: Any?) {
-        guard mayDiscard() else { return }
-        session.replace(.blank()); session.change { $0 = EditorSession.exampleDocument() }; session.reconcilePage()
-        window.makeKeyAndOrderFront(nil); session.fitCanvas?()
-    }
-    @objc func openDocument(_ sender: Any?) { session.finishInput?(); let panel = NSOpenPanel(); panel.allowedContentTypes = [Self.documentType]; panel.canChooseDirectories = true; if panel.runModal() == .OK, let url = panel.url { openURL(url) } }
-    func openURL(_ url: URL) { do { let doc = try DocumentCodec.load(from: url); if mayDiscard() { session.replace(doc, url: url); window?.makeKeyAndOrderFront(nil) } } catch { self.error(error) } }
-    @objc func save(_ sender: Any?) { _ = saveDocument(forcePanel: false) }
-    @objc func saveAs(_ sender: Any?) { _ = saveDocument(forcePanel: true) }
-    func saveDocument(forcePanel: Bool) -> Bool {
-        session.finishInput?(); var url = session.url
-        if forcePanel || url == nil { let panel = NSSavePanel(); panel.nameFieldStringValue = "未命名.opensketch"; panel.allowedContentTypes = [Self.documentType]; guard panel.runModal() == .OK else { return false }; url = panel.url }
-        guard let url else { return false }; do { try DocumentCodec.save(session.document, to: url); session.url = url; session.history.markSaved(document: session.document); return true } catch { self.error(error); return false }
-    }
     var activeTextEditor: NSTextView? { (NSApp.keyWindow ?? window)?.firstResponder as? NSTextView }
     @objc func undo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.undo() } else { session.undo() } }
     @objc func redo(_ sender: Any?) { if let editor = activeTextEditor { editor.undoManager?.redo() } else { session.redo() } }
@@ -72,18 +51,6 @@ import OpenSketchCore
         guard let rawValue = sender.representedObject as? String, let mode = AppearanceMode(rawValue: rawValue) else { return }
         appearance.mode = mode
     }
-    @objc func exportPNG(_ sender: Any?) { export(pdf: false) }
-    @objc func exportPDF(_ sender: Any?) { export(pdf: true) }
-    func export(pdf: Bool) {
-        session.finishInput?(); let panel = NSSavePanel(); panel.allowedContentTypes = [pdf ? .pdf : .png]; panel.nameFieldStringValue = pdf ? "设计.pdf" : "设计.png"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        var page = session.page; var bounds = CanvasRenderer.bounds(page: page)
-        if let frame = session.selected, frame.kind == .frame {
-            var isolated = frame; isolated.frame.origin = .zero; isolated.rotation = 0; isolated.clipsContent = true
-            page.nodes = [isolated]; bounds = CGRect(origin: .zero, size: frame.frame.size)
-        }
-        do { let data = try pdf ? Exporter.pdf(page: page, bounds: bounds) : Exporter.png(page: page, bounds: bounds); try data.write(to: url, options: .atomic); session.message = "已导出 \(url.lastPathComponent)" } catch { self.error(error) }
-    }
     @objc func inspectSketch(_ sender: Any?) {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [UTType(filenameExtension: "sketch") ?? .data]
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -94,7 +61,7 @@ import OpenSketchCore
         func menu(_ title: String) -> NSMenu { let item = NSMenuItem(); item.title = title; let m = NSMenu(title: title); item.submenu = m; bar.addItem(item); return m }
         func add(_ m: NSMenu, _ title: String, _ action: Selector, _ key: String = "", shift: Bool = false, responder: Bool = false) { let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = responder ? nil : self; item.keyEquivalentModifierMask = shift ? [.command,.shift] : [.command]; m.addItem(item) }
         let app = menu("openSketch"); add(app,"退出 openSketch",#selector(NSApplication.terminate(_:)),"q",responder:true)
-        let file = menu("文件"); add(file,"打开示例设计",#selector(openExample(_:))); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭窗口",#selector(NSWindow.performClose(_:)),"w",responder:true)
+        let file = menu("文件"); add(file,"打开示例设计",#selector(openExample(_:))); add(file,"新建",#selector(newDocument(_:)),"n"); add(file,"打开…",#selector(openDocument(_:)),"o"); add(file,"保存",#selector(save(_:)),"s"); add(file,"另存为…",#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,"导出 PNG…",#selector(exportPNG(_:))); add(file,"导出 PDF…",#selector(exportPDF(_:))); add(file,"检查 Sketch 元数据…",#selector(inspectSketch(_:))); add(file,"关闭标签页",#selector(closeCurrentDocument(_:)),"w")
         let edit = menu("编辑"); add(edit,"撤销",#selector(undo(_:)),"z"); add(edit,"重做",#selector(redo(_:)),"z",shift:true); add(edit,"剪切",#selector(NSText.cut(_:)),"x",responder:true); add(edit,"拷贝",#selector(copy(_:)),"c",responder:true); add(edit,"粘贴",#selector(paste(_:)),"v",responder:true); add(edit,"全选",#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,"复制图层",#selector(duplicate(_:)),"d"); add(edit,"删除图层",#selector(delete(_:)))
         let view = menu("视图"); add(view,"适合窗口",#selector(fit(_:)),"1"); add(view,"实际大小 100%",#selector(actualSize(_:)),"0")
         view.addItem(.separator())
@@ -118,8 +85,23 @@ import OpenSketchCore
         return switch menuItem.action { case #selector(undo(_:)): activeTextEditor.map { $0.undoManager?.canUndo ?? false } ?? session.history.canUndo; case #selector(redo(_:)): activeTextEditor.map { $0.undoManager?.canRedo ?? false } ?? session.history.canRedo; case #selector(copy(_:)), #selector(duplicate(_:)), #selector(delete(_:)): !session.roots.isEmpty; default: true }
     }
 
+    var documentTabsWidth: CGFloat { min(620, max(160, (window?.frame.width ?? 1280) - 520)) }
+
+    func makeDocumentTabs() -> DocumentTabsView {
+        DocumentTabsView(workspace: workspace, width: documentTabsWidth, select: { [weak self] id in
+            self?.selectDocument(id)
+        }, close: { [weak self] id in
+            self?.closeDocuments([id])
+        })
+    }
+
+    public func windowDidResize(_ notification: Notification) {
+        documentTabsHost?.rootView = makeDocumentTabs()
+        documentTabsHost?.setFrameSize(CGSize(width: documentTabsWidth, height: 32))
+    }
+
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.init("document.new"), .init("document.title"), .flexibleSpace, .init("view.fit"), .init("view.actualSize"), .init("view.zoomIn"), .init("view.zoomOut")]
+        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.fit"), .init("view.actualSize"), .init("view.zoomIn"), .init("view.zoomOut")]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -134,11 +116,12 @@ import OpenSketchCore
             item.label = "新建文档"; item.toolTip = "新建文档（⌘N）"
             item.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "新建文档")
             item.action = #selector(newDocument(_:))
-        case "document.title":
-            item.label = "当前文档"
-            let title = NSHostingView(rootView: DocumentTitleView(session: session))
-            title.frame = CGRect(x: 0, y: 0, width: 220, height: 32)
-            item.view = title
+        case "document.tabs":
+            item.label = "文档标签页"
+            let host = NSHostingView(rootView: makeDocumentTabs())
+            host.frame = CGRect(x: 0, y: 0, width: documentTabsWidth, height: 32)
+            documentTabsHost = host
+            item.view = host
         case "view.fit":
             item.label = "适合"; item.toolTip = "画布适合窗口（⌘1）"
             item.action = #selector(fit(_:))

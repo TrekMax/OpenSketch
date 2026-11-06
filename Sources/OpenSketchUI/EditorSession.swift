@@ -19,6 +19,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var url: URL?
     var gestureStart: DesignDocument?
     var finishInput: (() -> Void)?
+    var needsInitialFit = false
     var fitCanvas: (() -> Void)?
     var zoomCanvas: ((CGFloat) -> Void)?
     init(document: DesignDocument = .blank()) {

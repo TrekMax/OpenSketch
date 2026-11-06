@@ -5,7 +5,7 @@ import OpenSketchCore
 struct CanvasHost: NSViewRepresentable {
     var session: EditorSession
     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
-    func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; view.needsDisplay = true }
+    func updateNSView(_ view: CanvasView, context: Context) { _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; _ = session.needsInitialFit; view.needsDisplay = true; view.needsLayout = true }
 }
 @MainActor final class InlineTextView: NSTextView {
     var commitEditing: (() -> Void)?
@@ -44,6 +44,13 @@ struct CanvasHost: NSViewRepresentable {
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+    override func layout() {
+        super.layout()
+        // A new document's representable is created before it has a viewport.
+        guard session.needsInitialFit, bounds.width > 0, bounds.height > 0 else { return }
+        session.needsInitialFit = false
+        fit()
+    }
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
