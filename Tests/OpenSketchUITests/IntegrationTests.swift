@@ -4,6 +4,11 @@ import OpenSketchCore
 @testable import OpenSketchUI
 
 @MainActor struct IntegrationTests {
+    @Test func documentPanelFilterAcceptsPackageDocuments() {
+        // UTType's default .data constraint resolves a different dynamic type
+        // and grays out the saved .opensketch packages in the open panel.
+        #expect(AppController.documentType.conforms(to: .package))
+    }
     @Test func cancelledMoveRestoresCleanSnapshot() {
         let node = DesignNode(kind: .rectangle)
         let s = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [node])]))

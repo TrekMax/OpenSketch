@@ -20,6 +20,7 @@ enum EditorTool: String, CaseIterable { case select, frame, rectangle, ellipse, 
     var gestureStart: DesignDocument?
     var finishInput: (() -> Void)?
     var fitCanvas: (() -> Void)?
+    var zoomCanvas: ((CGFloat) -> Void)?
     init(document: DesignDocument = .blank()) {
         self.document = document; history = DocumentHistory(document: document); pageID = document.pages[0].id
     }

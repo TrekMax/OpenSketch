@@ -35,12 +35,21 @@ struct CanvasHost: NSViewRepresentable {
         setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel("设计画布")
         session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishGesture() }
         session.fitCanvas = { [weak self] in self?.fit() }
+        session.zoomCanvas = { [weak self] factor in
+            guard let self else { return }
+            self.finishText(commit: true)
+            self.zoom(to: self.session.zoom * factor, anchor: CGPoint(x: self.bounds.midX, y: self.bounds.midY))
+        }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
     func world(_ event: NSEvent) -> CGPoint { let p = convert(event.locationInWindow, from: nil); return CGPoint(x: (p.x-session.pan.x)/session.zoom, y: (p.y-session.pan.y)/session.zoom) }
     override func draw(_ dirtyRect: NSRect) {
         guard let c = NSGraphicsContext.current?.cgContext else { return }
-        NSColor.windowBackgroundColor.setFill(); bounds.fill()
+        EditorPalette.canvas.setFill(); bounds.fill()
         c.saveGState(); c.translateBy(x: session.pan.x, y: session.pan.y); c.scaleBy(x: session.zoom, y: session.zoom)
         if session.grid && session.zoom >= 0.25 {
             c.setFillColor(NSColor.separatorColor.cgColor)

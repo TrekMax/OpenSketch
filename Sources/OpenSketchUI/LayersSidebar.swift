@@ -3,6 +3,7 @@ import OpenSketchCore
 
 struct LayersSidebar: View {
     @Bindable var session: EditorSession
+    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text("页面").font(.headline); Spacer(); Button { session.addPage() } label: { Image(systemName: "plus") }.accessibilityLabel("添加页面").accessibilityIdentifier("page.add") }
@@ -13,7 +14,7 @@ struct LayersSidebar: View {
                     Button { session.finishInput?(); if NSEvent.modifierFlags.contains(.shift) { session.selection.insert(node.id) } else { session.selection = [node.id] } } label: { Text(node.name.isEmpty ? node.kind.rawValue : node.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, session.document.parentID(of: node.id) == nil ? 0 : 12) }.buttonStyle(.plain).accessibilityIdentifier("layer.\(node.id)")
                     Button { session.change { $0.updateNode(id: node.id) { $0.isVisible.toggle() } } } label: { Image(systemName: node.isVisible ? "eye" : "eye.slash") }.accessibilityLabel(node.isVisible ? "隐藏图层" : "显示图层").accessibilityIdentifier("layer.visibility.\(node.id)")
                     Button { session.change { $0.updateNode(id: node.id) { $0.isLocked.toggle() } } } label: { Image(systemName: node.isLocked ? "lock.fill" : "lock.open") }.accessibilityLabel(node.isLocked ? "解锁图层" : "锁定图层").accessibilityIdentifier("layer.lock.\(node.id)")
-                }.buttonStyle(.borderless).padding(7).background(session.selection.contains(node.id) ? Color.purple.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 5))
+                }.buttonStyle(.borderless).padding(7).background(session.selection.contains(node.id) ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 5))
             } } }
             if session.page.nodes.isEmpty { Text("暂无图层\n在画布上绘制第一个对象").font(.caption).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
