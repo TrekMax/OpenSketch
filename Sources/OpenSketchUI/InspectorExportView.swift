@@ -5,19 +5,28 @@ struct InspectorExportView: View {
     var export: (() -> Void)?
 
     private var preview: Result<PreparedExport, any Error> { Result { try session.prepareExport() } }
-    private var scope: Binding<ExportScope> {
-        Binding(get: { session.exportOptions.resolvedScope(selection: session.selection) },
-                set: { session.exportOptions.scope = $0 })
-    }
+    private var scope: ExportScope { session.exportOptions.resolvedScope(selection: session.selection) }
 
     var body: some View {
         let preview = preview
         VStack(alignment: .leading, spacing: 10) {
             Text("导出").font(.system(size: 11, weight: .semibold))
-            Picker("范围", selection: scope) {
-                Text("当前选择").tag(ExportScope.selection).disabled(session.selection.isEmpty)
-                Text("当前页面").tag(ExportScope.page)
-            }.accessibilityIdentifier("export.scope")
+            HStack {
+                Text("范围")
+                // Use actions so the native menu receives each item’s disabled state.
+                Menu {
+                    Button("当前选择") {
+                        guard !session.selection.isEmpty else { return }
+                        session.exportOptions.scope = .selection
+                    }.disabled(session.selection.isEmpty)
+                    Button("当前页面") { session.exportOptions.scope = .page }
+                } label: {
+                    Text(scope == .selection ? "当前选择" : "当前页面")
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("范围")
+                .accessibilityIdentifier("export.scope")
+            }
             Picker("格式", selection: $session.exportOptions.format) {
                 Text("PNG").tag(ExportFormat.png)
                 Text("PDF").tag(ExportFormat.pdf)
