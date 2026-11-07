@@ -26,8 +26,10 @@ private struct DocumentEditorView: View {
                             .foregroundStyle(session.tool == tool ? EditorPalette.selectionForeground(colorScheme) : .primary)
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(session.tool == tool ? EditorPalette.selection(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("tool.\(tool.rawValue)")
+                    .accessibilityAddTraits(session.tool == tool ? .isSelected : [])
                 }
                 Spacer()
                 Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(!session.canUndo).accessibilityLabel("撤销").accessibilityIdentifier("action.undo")
