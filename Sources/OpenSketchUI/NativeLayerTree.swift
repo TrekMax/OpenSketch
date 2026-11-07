@@ -43,6 +43,8 @@ struct NativeLayerTree: NSViewRepresentable {
             tree.rowHeight = 32
             tree.intercellSpacing = NSSize(width: 0, height: 4)
             tree.indentationPerLevel = 14
+            // Expanding a deeper level must not push trailing controls outside the sidebar.
+            tree.autoresizesOutlineColumn = false
             tree.allowsMultipleSelection = true
             tree.allowsEmptySelection = true
             tree.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
@@ -102,6 +104,7 @@ struct NativeLayerTree: NSViewRepresentable {
                     }
                 }
                 expand(roots)
+                tree.needsDisplay = true
             }
             let selected = IndexSet((0..<tree.numberOfRows).filter {
                 guard let id = (tree.item(atRow: $0) as? LayerTreeItem)?.id else { return false }
@@ -158,10 +161,12 @@ struct NativeLayerTree: NSViewRepresentable {
         func outlineViewItemDidCollapse(_ notification: Notification) {
             guard !synchronizing, let id = (notification.userInfo?["NSObject"] as? LayerTreeItem)?.id else { return }
             collapsed.insert(id)
+            tree?.needsDisplay = true
         }
         func outlineViewItemDidExpand(_ notification: Notification) {
             guard !synchronizing, let id = (notification.userInfo?["NSObject"] as? LayerTreeItem)?.id else { return }
             collapsed.remove(id)
+            tree?.needsDisplay = true
         }
 
         func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
@@ -292,6 +297,30 @@ struct NativeLayerTree: NSViewRepresentable {
     var menuForItem: ((LayerTreeItem) -> NSMenu?)?
     var renameSelection: (() -> Void)?
     var deleteSelection: (() -> Void)?
+    override func drawBackground(inClipRect clipRect: NSRect) {
+        super.drawBackground(inClipRect: clipRect)
+        let visibleRows = rows(in: clipRect)
+        guard visibleRows.location != NSNotFound, visibleRows.length > 0 else { return }
+        let guides = NSBezierPath()
+        guides.lineWidth = 1
+        for row in visibleRows.location..<min(NSMaxRange(visibleRows), numberOfRows) {
+            guard let item = item(atRow: row) as? LayerTreeItem, item.id != nil else { continue }
+            let rowRect = rect(ofRow: row)
+            var ancestor = parent(forItem: item)
+            while let parent = ancestor {
+                let parentRow = self.row(forItem: parent)
+                guard parentRow >= 0 else { break }
+                // Align with the ancestor icon, spanning the complete child row and inter-row gap.
+                let x = frameOfCell(atColumn: 0, row: parentRow).minX + LayerTreeCell.iconCenterX
+                guides.move(to: NSPoint(x: x, y: rowRect.minY - intercellSpacing.height / 2))
+                guides.line(to: NSPoint(x: x, y: rowRect.maxY + intercellSpacing.height / 2))
+                ancestor = self.parent(forItem: parent)
+            }
+        }
+        NSColor.separatorColor.setStroke()
+        guides.stroke()
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
         let row = row(at: convert(event.locationInWindow, from: nil))
         guard row >= 0, let item = item(atRow: row) as? LayerTreeItem else { return nil }
@@ -325,6 +354,7 @@ struct NativeLayerTree: NSViewRepresentable {
 }
 
 @MainActor final class LayerTreeCell: NSTableCellView {
+    static let iconCenterX: CGFloat = 9 // 2-point leading inset plus half the 14-point icon.
     private weak var session: EditorSession?
     private var nodeID: UUID?
     private let icon = NSImageView()
@@ -338,19 +368,29 @@ struct NativeLayerTree: NSViewRepresentable {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         imageView = icon
-        let stack = NSStackView(views: [icon, nameHost, visibility, lock])
-        stack.orientation = .horizontal; stack.spacing = 5; stack.alignment = .centerY
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        for view in [icon, nameHost, visibility, lock] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
-            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 14), nameHost.heightAnchor.constraint(equalToConstant: 22),
-            visibility.widthAnchor.constraint(equalToConstant: 18), lock.widthAnchor.constraint(equalToConstant: 18)
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            icon.widthAnchor.constraint(equalToConstant: 14),
+            icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nameHost.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 5),
+            nameHost.trailingAnchor.constraint(equalTo: visibility.leadingAnchor, constant: -8),
+            nameHost.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nameHost.heightAnchor.constraint(equalToConstant: 22),
+            visibility.widthAnchor.constraint(equalToConstant: 18),
+            visibility.trailingAnchor.constraint(equalTo: lock.leadingAnchor, constant: -5),
+            visibility.centerYAnchor.constraint(equalTo: centerYAnchor),
+            lock.widthAnchor.constraint(equalToConstant: 18),
+            lock.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
+            lock.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.cell)
+        name.alignment = .left
+        name.usesSingleLineMode = true
         name.font = .systemFont(ofSize: 12)
         name.lineBreakMode = .byTruncatingTail
         name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

@@ -185,4 +185,30 @@ import OpenSketchCore
         #expect(cell.accessibilityChildren()?.compactMap { $0 as? NSButton }.count == 2)
     }
 
+    @Test func expandedChildrenKeepActionButtonsInsideSidebar() throws {
+        _ = NSApplication.shared
+        let leaf = DesignNode(name: "这是一个较长的图层名称", kind: .rectangle)
+        let group = DesignNode(kind: .group, children: [leaf])
+        let frame = DesignNode(kind: .frame, children: [group])
+        let session = EditorSession(document: DesignDocument(pages: [DesignPage(nodes: [frame])]))
+        let coordinator = NativeLayerTree.Coordinator(session: session)
+        let scroll = coordinator.makeScrollView()
+        let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 196, height: 400), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = scroll
+        defer { window.close() }
+        scroll.layoutSubtreeIfNeeded()
+        let tree = try #require(scroll.documentView as? NativeLayerOutline)
+        for row in 0..<3 {
+            let cell = try #require(tree.view(atColumn: 0, row: row, makeIfNecessary: true) as? LayerTreeCell)
+            cell.layoutSubtreeIfNeeded()
+            let buttons = try #require(cell.accessibilityChildren()?.compactMap { $0 as? NSButton })
+            #expect(buttons.count == 2)
+            for button in buttons {
+                let rect = button.convert(button.bounds, to: scroll.contentView)
+                #expect(rect.minX >= scroll.contentView.bounds.minX)
+                #expect(rect.maxX <= scroll.contentView.bounds.maxX)
+            }
+        }
+    }
+
 }

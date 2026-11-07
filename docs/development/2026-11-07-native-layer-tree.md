@@ -50,3 +50,25 @@ codesign --verify --deep --strict build/openSketch.app
 Release 构建通过（11.83 秒），Info.plist 与 deep/strict ad-hoc 签名检查通过。最终包：`build/openSketch.app`，SHA-256：`40d033b6efbd63a5495477f1f4296c7ed42d0a627b11a35123f53588a166b4e3`。旧包保留在 `build/backups/openSketch-before-native-tree-final-20261107-012629.app`，在独立目录组装后原子替换，没有覆盖运行中的可执行文件 inode。
 
 最终再次访问窗口仍返回 `cgWindowNotFound`，因此无法正常退出旧进程并加载最终 Release；需退出后重新打开上述包。没有强制结束进程、安装 `/Applications` 或推送远端。原用户文档 JSON SHA-256 保持 `016d5a147a73d5102182c3f6c7ffce290e840bc338c4a8815b3bdd068d488357`；新建三页测试文档为 `24859d9cbe7393584b619907036c62d717f5cbe736cd0393b8199bc9ee459bd7`。
+
+## 图层行对齐与层级竖线
+
+后续基线 `0e40168`。按用户要求将名称固定左对齐，名称区域随剩余宽度伸缩并截断长名称；可见与锁定按钮固定在行尾。原位编辑器继续使用同一名称区域，选择、拖动与按钮事件仍由原有原生控件处理。
+
+本机 Sketch 实窗显示细竖线沿父层图标下方延伸，覆盖该父层的子树范围，不带水平连接线。对应实现放在 outline 背景绘制中：依据当前可见行的祖先和实际单元格位置计算，使用动态 `separatorColor`，展开、折叠、模型更新后刷新；不增加鼠标拦截视图。
+
+独立三层样例的实窗验证确认名称左对齐、长名称截断、父子竖线正确显示，并发现锁定按钮被右侧裁切。原生布局诊断确认：默认 `autoresizesOutlineColumn` 会在展开两级时将 196 点列宽扩到 224 点，超出侧栏。关闭此行为后，列宽继续随容器调整，不随子层深度增长。
+
+新增回归测试 `expandedChildrenKeepActionButtonsInsideSidebar`，在真实 AppKit 窗口布局中检查三层各行的两个按钮均位于可见区域。修复前记录 6 处越界，修复后通过；图层树与重命名两个测试集共 **26 项通过**，没有编译警告。相关命令：
+
+```sh
+swift test --filter 'NativeLayerTreeTests|SidebarRenameTests'
+swift build -c release --product openSketch
+git diff --check
+plutil -lint build/openSketch.app/Contents/Info.plist
+codesign --verify --deep --strict build/openSketch.app
+```
+
+本轮日志为 `/tmp/opensketch-tree-layout-{probe,red,green,final-release}.log`。Release 构建通过（10.92 秒），plist 与 deep/strict 签名检查通过。新包在独立目录组装后替换 `build/openSketch.app`，保留运行中旧可执行文件；最终 SHA-256 为 `3b8c7d34085b3afc294540b3f0cc965cd3a328841a09989155403ef793e7f465`，替换前包保留在 `build/backups/openSketch-before-tree-width-20261107-080538.app`。
+
+实窗样例为 `research/local/gui-tree-layout-20261107.opensketch`，原用户文档未改动。最后的窗口访问再次返回 `cgWindowNotFound`，最终列宽修正尚未完成重启后的按钮点击、折叠/展开与暗色实窗验收。应用外观保持原有“跟随系统”；后续恢复桌面后继续确认。
