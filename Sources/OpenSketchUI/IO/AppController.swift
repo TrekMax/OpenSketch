@@ -21,7 +21,7 @@ import OpenSketchCore
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular); appearance.apply(); makeMenus()
         window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 1280, height: 800), styleMask: [.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView], backing: .buffered, defer: false)
-        window.title = L10n.text("未命名 — openSketch"); window.delegate = self; window.isReleasedWhenClosed = false
+        window.title = L10n.text("未命名 — OpenSketch"); window.delegate = self; window.isReleasedWhenClosed = false
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
@@ -36,7 +36,7 @@ import OpenSketchCore
         observeDocument()
     }
     func observeDocument() {
-        withObservationTracking { window?.isDocumentEdited = session.isDirty; window?.title = "\(workspace.current.title) — openSketch" } onChange: { [weak self] in Task { @MainActor in self?.observeDocument() } }
+        withObservationTracking { window?.isDocumentEdited = session.isDirty; window?.title = "\(workspace.current.title) — OpenSketch" } onChange: { [weak self] in Task { @MainActor in self?.observeDocument() } }
     }
     func error(_ error: Error) {
         let alert = NSAlert()
@@ -71,7 +71,7 @@ import OpenSketchCore
         let bar = NSMenu(); NSApp.mainMenu = bar; applicationMenu = bar
         func menu(_ title: String) -> NSMenu { let item = NSMenuItem(); item.title = title; let m = NSMenu(title: title); item.submenu = m; bar.addItem(item); return m }
         func add(_ m: NSMenu, _ title: String, _ action: Selector, _ key: String = "", shift: Bool = false, responder: Bool = false) { let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = responder ? nil : self; item.keyEquivalentModifierMask = shift ? [.command,.shift] : [.command]; m.addItem(item) }
-        let app = menu("openSketch"); add(app,L10n.text("设置…"),#selector(showSettings(_:)),","); app.addItem(.separator()); add(app,L10n.text("退出 openSketch"),#selector(NSApplication.terminate(_:)),"q",responder:true)
+        let app = menu("OpenSketch"); add(app,L10n.text("设置…"),#selector(showSettings(_:)),","); app.addItem(.separator()); add(app,L10n.text("退出 OpenSketch"),#selector(NSApplication.terminate(_:)),"q",responder:true)
         let file = menu(L10n.text("文件")); add(file,L10n.text("打开示例设计"),#selector(openExample(_:))); add(file,L10n.text("新建"),#selector(newDocument(_:)),"n"); add(file,L10n.text("打开…"),#selector(openDocument(_:)),"o"); add(file,L10n.text("保存"),#selector(save(_:)),"s"); add(file,L10n.text("另存为…"),#selector(saveAs(_:)),"s",shift:true); file.addItem(.separator()); add(file,L10n.text("导出 PNG…"),#selector(exportPNG(_:))); add(file,L10n.text("导出 PDF…"),#selector(exportPDF(_:))); add(file,L10n.text("检查 Sketch 元数据…"),#selector(inspectSketch(_:))); add(file,L10n.text("关闭标签页"),#selector(closeCurrentDocument(_:)),"w")
         let edit = menu(L10n.text("编辑")); add(edit,L10n.text("撤销"),#selector(undo(_:)),"z"); add(edit,L10n.text("重做"),#selector(redo(_:)),"z",shift:true); add(edit,L10n.text("剪切"),#selector(NSText.cut(_:)),"x",responder:true); add(edit,L10n.text("拷贝"),#selector(copy(_:)),"c",responder:true); add(edit,L10n.text("粘贴"),#selector(paste(_:)),"v",responder:true); add(edit,L10n.text("全选"),#selector(NSText.selectAll(_:)),"a",responder:true); add(edit,L10n.text("复制图层"),#selector(duplicate(_:)),"d"); add(edit,L10n.text("删除图层"),#selector(delete(_:)))
         let layers = NSMenuItem(title: L10n.text("图层"), action: nil, keyEquivalent: "")

@@ -149,7 +149,7 @@ import OpenSketchCore
     func addPage() { finishInput?(); let p = DesignPage(name: L10n.format("页面 %d", document.pages.count + 1)); change { $0.pages.append(p) }; pageID = p.id; selection = [] }
     func replace(_ d: DesignDocument, url: URL? = nil) { finishInput?(); document = d; history = DocumentHistory(document: d); pageID = d.pages[0].id; selectedPageIDs = [pageID]; selection = []; self.url = url; pan = CGPoint(x: 60, y: 60); zoom = 1 }
     static func exampleDocument() -> DesignDocument {
-        let title = DesignNode(name: L10n.text("问候"), kind: .text, frame: CGRect(x: 48, y: 44, width: 480, height: 68), text: L10n.text("你好，openSketch ✨"), fontSize: 36)
+        let title = DesignNode(name: L10n.text("问候"), kind: .text, frame: CGRect(x: 48, y: 44, width: 480, height: 68), text: L10n.text("你好，OpenSketch ✨"), fontSize: 36)
         let subtitle = DesignNode(name: L10n.text("说明"), kind: .text, frame: CGRect(x: 48, y: 116, width: 480, height: 56), text: L10n.text("选择图层，调整颜色与形状。"), fontSize: 22)
         let card = DesignNode(name: L10n.text("紫色卡片"), kind: .rectangle, frame: CGRect(x: 48, y: 204, width: 286, height: 156), style: NodeStyle(fill: RGBAColor(red: 0.58, green: 0.36, blue: 0.9), cornerRadius: 24))
         let circle = DesignNode(name: L10n.text("暖色圆形"), kind: .ellipse, frame: CGRect(x: 358, y: 214, width: 136, height: 136), style: NodeStyle(fill: RGBAColor(red: 1, green: 0.67, blue: 0.38)))

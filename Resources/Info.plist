@@ -2,16 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>org.opensketch.app</string>
-<key>CFBundleName</key><string>openSketch</string>
+<key>CFBundleName</key><string>OpenSketch</string>
+<key>CFBundleDisplayName</key><string>OpenSketch</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
-<key>CFBundleExecutable</key><string>openSketch</string>
+<key>CFBundleExecutable</key><string>OpenSketch</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>
 <key>NSHighResolutionCapable</key><true/>
-<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>openSketch Document</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Owner</string><key>LSTypeIsPackage</key><true/><key>LSItemContentTypes</key><array><string>org.opensketch.document</string></array></dict></array>
-<key>UTExportedTypeDeclarations</key><array><dict><key>UTTypeIdentifier</key><string>org.opensketch.document</string><key>UTTypeDescription</key><string>openSketch Document</string><key>UTTypeConformsTo</key><array><string>com.apple.package</string></array><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>opensketch</string></array></dict></dict></array>
+<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>OpenSketch Document</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Owner</string><key>LSTypeIsPackage</key><true/><key>LSItemContentTypes</key><array><string>org.opensketch.document</string></array></dict></array>
+<key>UTExportedTypeDeclarations</key><array><dict><key>UTTypeIdentifier</key><string>org.opensketch.document</string><key>UTTypeDescription</key><string>OpenSketch Document</string><key>UTTypeConformsTo</key><array><string>com.apple.package</string></array><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>opensketch</string></array></dict></dict></array>
 </dict></plist>

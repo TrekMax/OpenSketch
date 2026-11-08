@@ -14,7 +14,7 @@ extension AppController {
 
     @objc func refreshLanguage() {
         if NSApp.mainMenu === applicationMenu { makeMenus() }
-        window?.title = "\(workspace.current.title) — openSketch"
+        window?.title = "\(workspace.current.title) — OpenSketch"
         for item in window?.toolbar?.items ?? [] {
             let keys: (String, String)? = switch item.itemIdentifier.rawValue {
             case "document.new": ("新建文档", "新建文档（⌘N）")

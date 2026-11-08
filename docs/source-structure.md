@@ -3,7 +3,7 @@
 源码按职责参考 Compositor 的 `Editor`、`UI`、`Rendering`、`IO` 分组，保留现有 Swift Package target：
 
 ```text
-openSketchApp → OpenSketchUI → OpenSketchCore
+OpenSketchApp → OpenSketchUI → OpenSketchCore
 ```
 
 目录是源码分组，不是独立 Swift 模块。`Package.swift` 自动发现 target 目录下的 Swift 文件；移动文件时保留所属 target、类型名、访问级别和行为。
@@ -53,9 +53,9 @@ SwiftUI 与 AppKit 的同一功能放在一起。功能扩展放在其职责目�
 
 ## App 入口、测试与脚本
 
-`Sources/openSketchApp/main.swift` 负责创建 `NSApplication` 和 `AppController`。应用资源仍由 `scripts/build.sh` 从仓库 `Resources` 复制到包内。
+`Sources/OpenSketchApp/main.swift` 负责创建 `NSApplication` 和 `AppController`。应用资源仍由 `scripts/build.sh` 从仓库 `Resources` 复制到包内。
 
-本地化词条由 SwiftPM 生成 `openSketch_OpenSketchUI.bundle`，打包脚本复制到应用的 `Contents/Resources`；`L10n` 优先使用应用内资源，测试和命令行运行使用 `Bundle.module`。状态提示保存键、参数或错误，展示时才按当前语言解析；文档中的用户名称和文字不作为翻译键。新增界面文案时同时更新两种语言及动态占位符检查。
+本地化词条由 SwiftPM 生成 `OpenSketch_OpenSketchUI.bundle`，打包脚本复制到应用的 `Contents/Resources`；`L10n` 优先使用应用内资源，测试和命令行运行使用 `Bundle.module`。状态提示保存键、参数或错误，展示时才按当前语言解析；文档中的用户名称和文字不作为翻译键。新增界面文案时同时更新两种语言及动态占位符检查。
 
 测试保留 `Tests/OpenSketchCoreTests` 和 `Tests/OpenSketchUITests` 两个 target，按 Swift 模块导入，不依赖源文件目录。
 

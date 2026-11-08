@@ -7,7 +7,7 @@ import OpenSketchCore
 @MainActor enum L10n {
     /// Prefer the installed app's resources; SwiftPM supplies the bundle in tests and swift run.
     static let resourceBundle: Bundle = {
-        if let url = Bundle.main.url(forResource: "openSketch_OpenSketchUI", withExtension: "bundle"),
+        if let url = Bundle.main.url(forResource: "OpenSketch_OpenSketchUI", withExtension: "bundle"),
            let bundle = Bundle(url: url) { return bundle }
         return Bundle.module
     }()

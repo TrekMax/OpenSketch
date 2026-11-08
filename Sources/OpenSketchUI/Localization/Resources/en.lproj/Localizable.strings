@@ -9,7 +9,7 @@
 "Sketch 元数据读取超时" = "Reading Sketch metadata timed out";
 "Sketch 元数据超过 1 MiB" = "Sketch metadata exceeds 1 MiB";
 "Sketch 文件超过 512 MiB 或不是普通文件" = "The Sketch file exceeds 512 MiB or is not a regular file";
-"openSketch 文档" = "openSketch Document";
+"OpenSketch 文档" = "OpenSketch Document";
 "“%@”已在另一个标签页中打开。请选择其他保存位置。" = "“%@” is already open in another tab. Choose a different save location.";
 "↳  移到页面根层级" = "↳  Move to page root";
 "上移一层" = "Bring Forward";
@@ -18,7 +18,7 @@
 "不支持此文档格式。" = "This document format is not supported.";
 "中" = "Center";
 "亮色" = "Light";
-"你好，openSketch ✨" = "Hello, openSketch ✨";
+"你好，OpenSketch ✨" = "Hello, OpenSketch ✨";
 "保存" = "Save";
 "保存对“%@”的更改？" = "Save changes to “%@”?";
 "倍率" = "Scale";
@@ -137,7 +137,7 @@
 "未命名" = "Untitled";
 "未命名 %d" = "Untitled %d";
 "未命名 1" = "Untitled 1";
-"未命名 — openSketch" = "Untitled — openSketch";
+"未命名 — OpenSketch" = "Untitled — OpenSketch";
 "未选中" = "Not selected";
 "样式" = "Style";
 "格式" = "Format";
@@ -191,7 +191,7 @@
 "路径" = "Path";
 "输入文字" = "Type text";
 "边框" = "Border";
-"退出 openSketch" = "Quit openSketch";
+"退出 OpenSketch" = "Quit OpenSketch";
 "适合画布" = "Fit Canvas";
 "适合窗口" = "Fit to Window";
 "选中图层" = "Selected Layers";

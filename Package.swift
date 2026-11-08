@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "openSketch",
+    name: "OpenSketch",
     defaultLocalization: "en",
     platforms: [.macOS(.v15)],
-    products: [.library(name: "OpenSketchCore", targets: ["OpenSketchCore"]), .executable(name: "openSketch", targets: ["openSketchApp"])],
+    products: [.library(name: "OpenSketchCore", targets: ["OpenSketchCore"]), .executable(name: "OpenSketch", targets: ["OpenSketchApp"])],
     targets: [
         .target(name: "OpenSketchCore"),
         .target(name: "OpenSketchUI", dependencies: ["OpenSketchCore"], resources: [.process("Localization/Resources")]),
-        .executableTarget(name: "openSketchApp", dependencies: ["OpenSketchUI"]),
+        .executableTarget(name: "OpenSketchApp", dependencies: ["OpenSketchUI"]),
         .testTarget(name: "OpenSketchUITests", dependencies: ["OpenSketchUI"]),
         .testTarget(name: "OpenSketchCoreTests", dependencies: ["OpenSketchCore"])
     ],
