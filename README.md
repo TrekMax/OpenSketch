@@ -14,11 +14,12 @@ codesign --verify --deep --strict build/openSketch.app
 open build/openSketch.app
 ```
 
-`scripts/build.sh debug` 构建调试包；`swift build -c release --product openSketch` 只构建命令行可执行产物。`open Package.swift` 可在 Xcode 打开工程。构建脚本支持从其他目录调用其绝对路径，产物固定写入仓库的 `build/openSketch.app`，使用本地 ad-hoc 签名。没有安装到 `/Applications`。
+`scripts/build.sh debug` 构建调试包；`swift build -c release --product openSketch` 只构建命令行可执行产物。`open Package.swift` 可在 Xcode 打开工程。构建脚本支持从其他目录调用其绝对路径，产物固定写入仓库的 `build/openSketch.app`，使用本地 ad-hoc 签名。构建脚本不会自动安装到 `/Applications`。
 
 ## 已实现范围
 
-- AppKit 画布/原生图层树与 SwiftUI 面板，简体中文界面；单窗口多文档标签、页面列表与添加/切换、图层树、锁定与显示控制。文件菜单提供原创可编辑的“打开示例设计”。
+- AppKit 画布/原生图层树与 SwiftUI 面板，中英文界面；单窗口多文档标签、页面列表与添加/切换、图层树、锁定与显示控制。文件菜单提供原创可编辑的“打开示例设计”。
+- 应用菜单“设置…”（`⌘,`）提供外观和语言面板；语言支持跟随系统、English、简体中文，立即更新应用菜单、面板及提示并记住选择。切换语言保留已有文档名称和正文；新建内容按创建时语言命名。设置窗口中的 `⌘W` 只关闭设置，文档编辑快捷键不会修改后台文档。
 - 页面及图层行右键“重命名”后直接在原位置输入，自动选中旧名称；Enter 或失焦提交，Escape 取消，支持单步撤销。画板、编组及锁定/隐藏图层均可改名。
 - 页面、图层与编组支持整行选择和高亮，文字外的空白、图标、缩进均可点击；Shift 点击追加或取消选择。页面多选时仅显示活动页面画布，活动页以粗体名称区分；展开、隐藏、锁定按钮保持独立。
 - 左侧图层树支持单个或多个已选图层拖拽：行间调整前后顺序，画板/编组行中部放入容器，底部“移到页面根层级”移出容器。显示插入线或容器高亮，跨父级保持世界几何，松手后一次撤销；仅处理当前文档当前页面。
@@ -86,6 +87,7 @@ Sketch 参考亮色更新通过相同 92 项回归测试、Release/签名检查�
 | 平移 / 锚点缩放 | 滚动 / `⌘` 滚动或触控板捏合 |
 | 适合窗口 / 实际大小 | `⌘ 1` / `⌘ 0` |
 | 亮色 / 暗色 / 跟随系统 | 底部“外观”，或“视图 → 外观” |
+| 设置 / 界面语言 | `⌘,`，或“openSketch → 设置…”；通用设置中选择语言与外观 |
 | 新建 / 缩放滑条 / 比例菜单 / 放大缩小 | 顶部原生工具栏；百分比常显，下拉选择适合画布、实际尺寸或倍率；`⌘0` 恢复 100% |
 | PNG/PDF 导出 | 右侧检查器“导出”，或文件菜单；未选中对象时使用当前页面 |
 | Sketch 元数据检查 | 文件菜单 |
@@ -112,9 +114,13 @@ scripts/benchmark.sh
 - [精准编辑验收](docs/development/2026-11-06-precision-editing.md)
 - [资源导出验收](docs/development/2026-11-06-export-panel.md)
 - [核心 API 与文件格式](docs/development/core-api.md)
+- [源码结构与文件归属](docs/source-structure.md)
+- [设置与中英文本地化验证](docs/development/2026-11-08-settings-localization.md)
 - [原型实施计划](docs/superpowers/plans/2026-11-06-native-prototype.md)
 - [初期可行性评估](docs/assessment/2026-11-05-feasibility.md)、[Compositor 审计](docs/assessment/compositor-audit.md)、[替代能力矩阵](docs/assessment/replacement-matrix.md)、[Sketch 观察](docs/assessment/sketch-observations.md)（历史评估材料，不代表当前全部能力）
 
 ## 开源与来源
 
-代码、示例与文档为本项目原创，采用 [MIT License](LICENSE)，仅使用 Apple 系统框架及系统工具，没有引入第三方源代码或包依赖。Compositor 仅作为架构参考。来源、系统依赖及商标说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。openSketch 与 Sketch 官方产品没有隶属关系。
+项目采用 [MIT License](LICENSE)，使用 Apple 系统框架及系统工具，无第三方包依赖。设置和语言支持参考并改写 Compositor 的部分 MIT 实现，保留其版权与完整许可；其他来源、系统依赖及商标说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。openSketch 与 Sketch 官方产品没有隶属关系。
+
+金色纸飞机应用图标提供 [SVG、PNG 与 ICNS](Resources/AppIcon/README.md)，构建时自动写入应用包。

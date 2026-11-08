@@ -383,7 +383,7 @@ import OpenSketchCore
         s.insert([node]); let before = s.document; let selected = s.selection
         s.insert([node])
         #expect(s.document == before); #expect(s.selection == selected)
-        #expect(s.message.contains("无法插入"))
+        #expect(s.message.contains(L10n.text("无法插入")))
     }
 
 }

@@ -262,7 +262,7 @@ import OpenSketchCore
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         let menu = try #require(zoomMenu(in: host))
-        let command = try #require(menu.menu?.items.dropFirst().first { $0.title == title })
+        let command = try #require(menu.menu?.items.dropFirst().first { $0.title == L10n.text(title) })
         workspace.newDocument()
         let second = workspace.current.session
         let canvas = CanvasView(session: second)

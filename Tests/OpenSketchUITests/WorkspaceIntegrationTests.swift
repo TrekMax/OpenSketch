@@ -92,8 +92,8 @@ import OpenSketchCore
             #expect(image.pixelsWide == 90)
             #expect(image.pixelsHigh == 40)
         }
-        #expect(first.session.message == "已导出 \(filename)")
-        #expect(second.session.message != "已导出 \(filename)")
+        #expect(first.session.message == L10n.format("已导出 %@", filename))
+        #expect(second.session.message != L10n.format("已导出 %@", filename))
     }
 
     @Test func toolbarContainsDocumentTabsThatStayBoundedOnResize() throws {

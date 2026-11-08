@@ -77,8 +77,8 @@ import OpenSketchCore
         s.selection = [a.id, b.id]; let original = s.document
         s.beginGesture(); s.moveSelection(by: CGSize(width: 1, height: 0))
         #expect(s.document == original)
-        #expect(s.message.hasPrefix("无法"))
-        #expect(s.message.contains("坐标"))
+        #expect(s.message.hasPrefix(L10n.text("无法")))
+        #expect(s.message.contains(L10n.text("坐标")))
         s.commitGesture(); #expect(!s.history.canUndo)
     }
 
@@ -219,7 +219,7 @@ import OpenSketchCore
         f.canvas.mouseDragged(with: try mouse(.leftMouseDragged, CGPoint(x: 1e9 + 100, y: 45), f))
         #expect(f.session.document == last)
         #expect(f.canvas.guides.isEmpty)
-        #expect(f.session.message.hasPrefix("无法"))
+        #expect(f.session.message.hasPrefix(L10n.text("无法")))
         f.canvas.keyDown(with: try key(53, f))
         #expect(f.session.document.node(id: id)?.frame.minX == 20)
         #expect(!f.session.history.canUndo)
@@ -310,7 +310,7 @@ import OpenSketchCore
         let original = f.session.document
         f.session.beginGesture(); f.session.moveSelection(by: CGSize(width: 1, height: 0)); f.session.commitGesture()
         #expect(f.session.document == original)
-        #expect(f.session.message.contains("锁定"))
+        #expect(f.session.message.contains(L10n.text("锁定")))
         #expect(!f.session.history.canUndo)
     }
 

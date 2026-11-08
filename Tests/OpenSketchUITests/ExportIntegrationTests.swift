@@ -23,7 +23,7 @@ import OpenSketchCore
             return url
         })
         #expect(try outputSize(at: url, pdf: pdf) == CGSize(width: 37, height: 19))
-        #expect(target.session.message == "已导出 \(url.lastPathComponent)")
+        #expect(target.session.message == L10n.format("已导出 %@", url.lastPathComponent))
         #expect(controller.session.message != target.session.message)
     }
 
@@ -119,7 +119,7 @@ import OpenSketchCore
         if writeFile { #expect(try outputSize(at: url, pdf: false) == CGSize(width: 47, height: 10)) }
         else { #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty) }
         #expect(session.url == nil)
-        #expect(session.message == (writeFile ? "已导出 数值.png" : message))
+        #expect(session.message == (writeFile ? L10n.format("已导出 %@", "数值.png") : message))
         #expect(session.inspectorEdit == nil)
         #expect(session.isDirty)
         session.undo()
@@ -169,7 +169,7 @@ import OpenSketchCore
         controller.export(documentID: first.id, chooseDestination: { _ in url })
         #expect(try outputSize(at: url, pdf: false) == CGSize(width: 82, height: 50))
         #expect(controller.workspace.currentID == second.id)
-        #expect(first.session.message == "已导出 后台.png")
+        #expect(first.session.message == L10n.format("已导出 %@", "后台.png"))
         #expect(second.session.message != first.session.message)
     }
 

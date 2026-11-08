@@ -57,7 +57,7 @@ import OpenSketchCore
         try release(f, at: CGPoint(x: 1e9 + 100, y: 155))
         #expect(f.session.document == moved)
         #expect(f.session.document.parentID(of: a.id) == source.id)
-        #expect(f.session.message.contains("无法移动图层"))
+        #expect(f.session.message.contains(L10n.text("无法移动图层")))
         f.session.undo(); #expect(f.session.document == original); #expect(!f.session.history.canUndo)
     }
 
@@ -142,7 +142,7 @@ import OpenSketchCore
         try drag(f, from: CGPoint(x: 25, y: 45), to: CGPoint(x: 235, y: 155))
         try release(f, at: CGPoint(x: 235, y: 155))
         #expect(f.session.document == original)
-        #expect(f.session.message.contains("锁定"))
+        #expect(f.session.message.contains(L10n.text("锁定")))
         #expect(!f.session.history.canUndo)
     }
 
@@ -155,8 +155,8 @@ import OpenSketchCore
         let moved = f.session.document
         try release(f, at: CGPoint(x: 235, y: 155))
         #expect(f.session.document == moved)
-        #expect(f.session.message.contains("无法调整图层归属"))
-        #expect(f.session.message.contains("锁定"))
+        #expect(f.session.message.contains(L10n.text("无法调整图层归属")))
+        #expect(f.session.message.contains(L10n.text("锁定")))
     }
 
     @Test(arguments: ["escape", "finish", "focus", "window", "close", "viewport", "size", "page", "replace", "detach"])

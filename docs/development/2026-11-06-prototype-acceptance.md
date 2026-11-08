@@ -74,7 +74,7 @@ GUI 仅新建本地验收文档。PNG/PDF 及 `*-png-preview.png` / `*-pdf-previ
 
 ## 可复现几何基准
 
-源码：[benchmark.sh](../../scripts/benchmark.sh)、[GeometryBenchmark.swift](../../scripts/GeometryBenchmark.swift)。运行 `scripts/benchmark.sh` 会使用系统 `xcrun swiftc` 将当前 `Sources/OpenSketchCore/*.swift` 与测量程序一起编译，参数为 `-swift-version 6 -O -whole-module-optimization -target arm64-apple-macosx15.0`（Intel 主机自动使用 x86_64），SDK 由 `xcrun --sdk macosx --show-sdk-path` 选择。二进制及 JSON 存于 `build/benchmark/`；成功后替换 `geometry-results.json` 并打印到标准输出，失败不覆盖上次 JSON。
+源码：[benchmark.sh](../../scripts/benchmark.sh)、[GeometryBenchmark.swift](../../scripts/GeometryBenchmark.swift)。运行 `scripts/benchmark.sh` 会使用系统 `xcrun swiftc` 将 `Sources/OpenSketchCore` 下递归发现的 Swift 源码与测量程序一起编译，参数为 `-swift-version 6 -O -whole-module-optimization -target arm64-apple-macosx15.0`（Intel 主机自动使用 x86_64），SDK 由 `xcrun --sdk macosx --show-sdk-path` 选择。二进制及 JSON 存于 `build/benchmark/`；成功后替换 `geometry-results.json` 并打印到标准输出，失败不覆盖上次 JSON。递归发现随 2026-11-08 的[源码目录整理](../source-structure.md)加入；下述历史测量结果保留原记录。
 
 场景是 1,000 或 10,000 个扁平矩形节点：固定 UUID，100 列，节点 20×16，网格间距 30×24，索引 `%3==1` 的节点旋转 15°。每批固定 100 次顺序查询：索引 `%4==0` 查询 (-1000,-1000)，其余查询节点 `(i*97)%count` 的中心，即 75 次命中、25 次未命中。逐次校验返回 UUID，并累计校验包括预热的 1,725 次命中，避免仅计时未使用的结果。
 

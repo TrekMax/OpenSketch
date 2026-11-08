@@ -99,7 +99,7 @@ import OpenSketchCore
         try expectColor(png(snapshot), x: 5, y: 5, red: 1, blue: 0, alpha: 0.5)
         let merged = try ExportSnapshot.make(page: page, selection: [a.id, b.id], scope: .selection)
         #expect(merged.bounds == snapshot.bounds)
-        #expect(merged.name == "选中图层")
+        #expect(merged.name == L10n.text("选中图层"))
         let image = try png(merged)
         try expectColor(image, x: 45, y: 5, red: 0, blue: 1, alpha: 0.5)
         #expect(try #require(image.colorAt(x: 30, y: 5)).alphaComponent < 0.01)

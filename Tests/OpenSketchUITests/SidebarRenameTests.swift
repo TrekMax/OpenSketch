@@ -170,7 +170,7 @@ import OpenSketchCore
         session.updateSidebarRename(try #require(session.sidebarRename?.request.id), name: "  ")
         session.finishInput?()
         #expect(session.document == original && session.history.canRedo && session.sidebarRename == nil)
-        #expect(session.message.contains("名称不能为空"))
+        #expect(session.message.contains(L10n.text("名称不能为空。")))
     }
 
     @Test(arguments: [false, true]) func nativeInlineFieldEnterAndEscape(cancel: Bool) throws {

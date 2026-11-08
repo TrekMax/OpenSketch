@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">openSketch — Golden Paper Plane</title>
+  <desc id="description">An amber origami paper airplane pointing to the upper right, on an ivory rounded square. Editable vector paths, gradients and shadows.</desc>
+  <defs>
+    <linearGradient id="tile" x1="512" y1="96" x2="512" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.54" stop-color="#FAFAF9"/>
+      <stop offset="1" stop-color="#F0EFEE"/>
+    </linearGradient>
+    <linearGradient id="tile-edge" x1="512" y1="96" x2="512" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#CFCBC5" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="upper-wing" x1="412" y1="338" x2="466" y2="568" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD13E"/>
+      <stop offset="0.34" stop-color="#FFE66D"/>
+      <stop offset="0.7" stop-color="#FFF5A1"/>
+      <stop offset="1" stop-color="#FFD94D"/>
+    </linearGradient>
+    <linearGradient id="upper-glow" x1="184" y1="490" x2="760" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.56" stop-color="#FFFDE2" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="under-fold" x1="292" y1="534" x2="300" y2="706" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F58B00"/>
+      <stop offset="0.38" stop-color="#E96C00"/>
+      <stop offset="1" stop-color="#FFAA05"/>
+    </linearGradient>
+    <linearGradient id="center-fold" x1="430" y1="480" x2="500" y2="555" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB511"/>
+      <stop offset="0.36" stop-color="#ED7900"/>
+      <stop offset="0.72" stop-color="#CC5600"/>
+      <stop offset="1" stop-color="#A83700"/>
+    </linearGradient>
+    <linearGradient id="lower-wing" x1="493" y1="445" x2="687" y2="684" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD021"/>
+      <stop offset="0.54" stop-color="#FFC000"/>
+      <stop offset="1" stop-color="#FFAC00"/>
+    </linearGradient>
+    <linearGradient id="lower-glow" x1="708" y1="336" x2="469" y2="715" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE56C" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#FFD529" stop-opacity="0"/>
+      <stop offset="1" stop-color="#FFCF35" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="fold-light" x1="354" y1="558" x2="802" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFACB"/>
+      <stop offset="0.6" stop-color="#FFF6AD"/>
+      <stop offset="1" stop-color="#FFDE65"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="56" y="62" width="912" height="924" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dy="10" result="shadow"/>
+      <feFlood flood-color="#1E160A" flood-opacity="0.16"/>
+      <feComposite in2="shadow" operator="in"/>
+    </filter>
+    <filter id="plane-shadow" x="76" y="174" width="812" height="708" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+    <filter id="plane-contact" x="110" y="190" width="736" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <path id="silhouette" d="M152 493 798 217Q806 213 803 221L590 770Q588 776 582 773L366 667 319 714Q314 719 313 711L290 589Z"/>
+    <path id="upper-shape" d="M152 493 798 217Q806 213 802 218L354 558Q352 560 348 559L153 501Q145 498 152 493Z"/>
+    <path id="lower-shape" d="M802 218 590 770Q588 776 582 773L366 667Z"/>
+  </defs>
+
+  <!-- macOS tile; the canvas outside its shadow remains transparent. -->
+  <g id="app-tile">
+    <rect x="96" y="96" width="832" height="832" rx="188" fill="#2A2116" filter="url(#tile-shadow)"/>
+    <rect x="96" y="96" width="832" height="832" rx="188" fill="url(#tile)"/>
+    <rect x="97.5" y="97.5" width="829" height="829" rx="186.5" stroke="url(#tile-edge)" stroke-width="3"/>
+  </g>
+
+  <!-- The entire airplane consists of four folded faces. -->
+  <g id="paper-plane">
+    <use href="#silhouette" transform="translate(0 30)" fill="#B46405" opacity="0.25" filter="url(#plane-shadow)"/>
+    <use href="#silhouette" transform="translate(0 8)" fill="#BC6900" opacity="0.13" filter="url(#plane-contact)"/>
+    <path id="folded-tail" d="M151 499 354 558 315 716 290 589Z" fill="url(#under-fold)"/>
+    <path id="keel" d="M354 558 802 218 366 667 319 714Q314 719 315 711Z" fill="url(#center-fold)"/>
+    <use href="#lower-shape" fill="url(#lower-wing)"/>
+    <use href="#lower-shape" fill="url(#lower-glow)"/>
+    <path d="M366 667 582 773Q588 776 590 770L802 218" stroke="#E99100" stroke-opacity="0.64" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M369 665 583 770Q586 771 588 767L801 220" stroke="#FFE15A" stroke-opacity="0.8" stroke-width="1.6" stroke-linejoin="round"/>
+    <use href="#upper-shape" fill="url(#upper-wing)"/>
+    <use href="#upper-shape" fill="url(#upper-glow)"/>
+    <path d="M152 496 798 218" stroke="#FFF2A1" stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M152 499 349 559Q352 560 355 557L801 219" stroke="url(#fold-light)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M353 561 315 713 365 666 801 219" stroke="#FFB31C" stroke-opacity="0.82" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M290 590 314 713" stroke="#FFCB38" stroke-opacity="0.62" stroke-width="1.4"/>
+  </g>
+</svg>

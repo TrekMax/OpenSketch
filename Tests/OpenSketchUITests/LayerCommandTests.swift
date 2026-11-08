@@ -77,7 +77,7 @@ import OpenSketchCore
         #expect(session.document == original)
         #expect(session.selection == selected)
         #expect(!session.history.canUndo)
-        #expect(session.message.hasPrefix("无法"))
+        #expect(session.message.hasPrefix(L10n.text("无法")))
     }
 
     @Test func activeInlineTransactionCommitsBeforeLayerCommand() throws {
@@ -294,7 +294,7 @@ import OpenSketchCore
         #expect(session.selected?.text == "检查器中的文字")
         #expect(fixture.canvas.editor == nil)
         #expect(fixture.canvas.textID == nil)
-        #expect(session.message.contains("检查器"))
+        #expect(session.message.localizedCaseInsensitiveContains(L10n.text("检查器")))
         #expect(session.document == original)
         #expect(!session.history.canUndo)
         #expect(!session.history.isEditing)

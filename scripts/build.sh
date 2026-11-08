@@ -10,6 +10,18 @@ bundle_dir="$repo_dir/build/openSketch.app"
 mkdir -p "$bundle_dir/Contents/MacOS" "$bundle_dir/Contents/Resources"
 cp "$binary_dir/openSketch" "$bundle_dir/Contents/MacOS/openSketch"
 cp "$repo_dir/Resources/Info.plist" "$bundle_dir/Contents/Info.plist"
+cp "$repo_dir/Resources/AppIcon/AppIcon.icns" "$bundle_dir/Contents/Resources/AppIcon.icns"
+resource_bundle="openSketch_OpenSketchUI.bundle"
+if [ ! -d "$binary_dir/$resource_bundle" ]; then
+    echo "Missing localization resource bundle: $binary_dir/$resource_bundle" >&2
+    exit 1
+fi
+ditto "$binary_dir/$resource_bundle" "$bundle_dir/Contents/Resources/$resource_bundle"
+for language in en zh-Hans; do
+    ditto "$repo_dir/Resources/$language.lproj" "$bundle_dir/Contents/Resources/$language.lproj"
+done
+mkdir -p "$bundle_dir/Contents/Resources/Licenses"
+cp "$repo_dir/LICENSES/Compositor-MIT.txt" "$bundle_dir/Contents/Resources/Licenses/Compositor-MIT.txt"
 codesign --force --sign - "$bundle_dir"
 codesign --verify --strict "$bundle_dir"
 echo "$bundle_dir"
