@@ -88,7 +88,7 @@
 "打开…" = "Open…";
 "打开示例设计" = "Open Example Design";
 "找不到文件。" = "The file could not be found.";
-"拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / T 文字" = "Drag to create shapes · V Select / F Frame / R Rectangle / O Ellipse / T Text";
+"拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / P 钢笔 / T 文字" = "Drag to create shapes · V Select / F Frame / R Rectangle / O Ellipse / P Pen / T Text";
 "拖动调整" = "Drag to adjust";
 "拖动调整%@" = "Drag to adjust %@";
 "拷贝" = "Copy";
@@ -189,6 +189,12 @@
 "调整图层前后顺序" = "Change layer stacking order";
 "跟随系统" = "Follow System";
 "路径" = "Path";
+"钢笔" = "Pen";
+"点击添加路径节点 · Enter 完成 · Escape 取消" = "Click to add path nodes · Enter to finish · Escape to cancel";
+"无法闭合路径" = "Unable to close path";
+"无法创建路径" = "Unable to create path";
+"路径至少需要两个节点" = "A path needs at least two nodes";
+"拖动节点编辑路径 · Escape 退出节点编辑" = "Drag nodes to edit the path · Escape to leave node editing";
 "输入文字" = "Type text";
 "边框" = "Border";
 "退出 OpenSketch" = "Quit OpenSketch";

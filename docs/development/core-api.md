@@ -207,6 +207,28 @@ enum SceneGeometry {
     static func traversal(in page: DesignPage) -> [DesignNode]
     static func cgPath(for path: VectorPath) -> CGPath
 }
+enum PathPointRole: String, Codable, CaseIterable, Sendable {
+    case destination, control1, control2
+}
+struct PathPointReference: Equatable, Sendable {
+    var commandIndex: Int
+    var role: PathPointRole
+}
+struct PathGeometry: Equatable, Sendable {
+    var frame: CGRect
+    var path: VectorPath
+}
+enum PathEditing {
+    static func geometry(points: [CGPoint], closed: Bool = false) throws -> PathGeometry
+    static func makeNode(name: String, points: [CGPoint], closed: Bool = false,
+                         style: NodeStyle? = nil) throws -> DesignNode
+    static func appendLine(to point: CGPoint, in path: VectorPath) throws -> VectorPath
+    static func close(_ path: VectorPath) throws -> VectorPath
+    static func movePoint(_ reference: PathPointReference, to point: CGPoint,
+                          in path: VectorPath) throws -> VectorPath
+    static func removeCommand(at index: Int, from path: VectorPath) throws -> VectorPath
+    static func validate(_ path: VectorPath) throws
+}
 ```
 
 frame.origin 是父坐标中的位置，frame.size 是本地宽高。本地原点为 (0,0)。rotation 是角度制，向下为正的画布中正角度顺时针。变换是 `T(frame.origin) × T(center) × R(rotation) × T(-center)`；CoreGraphics 合成时子变换使用 `local.concatenating(parentWorld)`。绘制、导出、命中需使用这一规则；视图缩放和平移在世界坐标外单独处理。

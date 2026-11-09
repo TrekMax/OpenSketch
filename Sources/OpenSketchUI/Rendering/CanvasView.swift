@@ -34,6 +34,9 @@ struct CanvasHost: NSViewRepresentable {
     var precision: PrecisionInput?
     var guides: [SnapGuide] = []
     var containerDrag: ContainerDrag?
+    private var penPoints: [CGPoint] = []
+    private var pathEditingID: UUID?
+    private var pathEditingPoint: PathPointReference?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
@@ -41,7 +44,12 @@ struct CanvasHost: NSViewRepresentable {
         // Keep artwork, selection overlays and the inline editor inside the viewport.
         clipsToBounds = true
         setAccessibilityIdentifier("editor.canvas"); setAccessibilityLabel(L10n.text("设计画布"))
-        session.finishInput = { [weak self] in self?.finishText(commit: true); self?.finishPrecision(); self?.finishGesture() }
+        session.finishInput = { [weak self] in
+            self?.finishText(commit: true)
+            self?.finishPrecision()
+            self?.finishPathEditing(commit: true)
+            self?.finishGesture()
+        }
         session.canUndoPendingNudge = { [weak self] in
             guard let self, case .nudge = self.precision else { return false }
             // Menu validation must stay pure and must not commit mouse or text input.
@@ -116,11 +124,31 @@ struct CanvasHost: NSViewRepresentable {
         drawContainerDrag(in: c)
         drawPrecision(in: c)
         c.restoreGState()
+        drawPathEditingOverlay(in: c)
         if session.page.nodes.isEmpty { (L10n.text("开始设计\n选择上方工具，然后在画布中拖动") as NSString).draw(in: CGRect(x: 40, y: 35, width: 340, height: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.secondaryLabelColor]) }
     }
     override func mouseDown(with event: NSEvent) {
+        let point = world(event)
+        if session.tool == .pen {
+            if creationTool == .pen {
+                appendPenPoint(point, close: event.clickCount > 1)
+            } else {
+                beginPen(at: point)
+            }
+            return
+        }
+        if let id = pathEditingID {
+            if let node = session.document.node(id: id),
+               let transform = SceneGeometry.worldTransform(id: id, in: session.page),
+               let reference = nearestPathPoint(in: node, to: point, transform: transform) {
+                pathEditingPoint = reference
+                session.beginGesture()
+                return
+            }
+            finishPathEditing(commit: true)
+        }
         session.finishInput?(); window?.makeFirstResponder(self)
-        let p = world(event); start = p; creation = nil; creationTool = nil; resizing = nil
+        let p = point; start = p; creation = nil; creationTool = nil; resizing = nil
         if session.tool == .select {
             if let n = session.selected, n.kind != .group, n.rotation == 0, session.editable(n.id), let transform = SceneGeometry.worldTransform(id: n.id, in: session.page) {
                 let corner = CGPoint(x: n.frame.width, y: n.frame.height).applying(transform)
@@ -130,6 +158,10 @@ struct CanvasHost: NSViewRepresentable {
                 let target = session.canvasSelectionTarget(hit, direct: event.modifierFlags.contains(.option))
                 if event.modifierFlags.contains(.shift) { if session.selection.contains(target) { session.selection.remove(target) } else { session.selection.insert(target) } }
                 else if !session.selection.contains(target) { session.selection = [target] }
+                if event.clickCount == 2, session.document.node(id: hit)?.kind == .path {
+                    beginPathEditing(hit, at: p)
+                    return
+                }
                 if event.clickCount == 2, session.document.node(id: hit)?.kind == .text {
                     session.selection = [hit]
                     start = nil; beginText(hit); return
@@ -150,6 +182,13 @@ struct CanvasHost: NSViewRepresentable {
     }
     override func mouseDragged(with event: NSEvent) {
         let p = world(event)
+        if let id = pathEditingID, let reference = pathEditingPoint,
+           let transform = SceneGeometry.worldTransform(id: id, in: session.page),
+           let local = try? PathEditing.movePoint(reference, to: p.applying(transform.inverted()), in: session.document.node(id: id)?.path ?? VectorPath()) {
+            session.document.updateNode(id: id) { $0.path = local }
+            needsDisplay = true
+            return
+        }
         if updateMarquee(to: p) { return }
         guard let start else { return }
         if let id = creation { session.document.updateNode(id: id) { $0.frame = CGRect(x: min(start.x,p.x), y: min(start.y,p.y), width: max(1,abs(p.x-start.x)), height: max(1,abs(p.y-start.y))) } }
@@ -166,10 +205,15 @@ struct CanvasHost: NSViewRepresentable {
     }
     func finishGesture(beginTextEditing: Bool = false) {
         let id = creation, tool = creationTool
-        if start != nil { session.commitGesture() }
+        if creationTool == .pen {
+            if penPoints.count >= 2 { session.commitGesture() }
+            else { session.cancelGesture() }
+        } else if start != nil {
+            session.commitGesture()
+        }
         guides = []
         clearContainerDrag()
-        start = nil; creation = nil; creationTool = nil; resizing = nil
+        start = nil; creation = nil; creationTool = nil; resizing = nil; penPoints = []
         if beginTextEditing, let id, session.document.node(id: id)?.kind == .text {
             beginText(id)
             if textID == id { textCreationTool = tool; return }
@@ -177,6 +221,12 @@ struct CanvasHost: NSViewRepresentable {
         finishCreation(tool: tool)
     }
     override func mouseUp(with event: NSEvent) {
+        if pathEditingPoint != nil {
+            finishPathEditing(commit: true)
+            needsDisplay = true
+            return
+        }
+        if creationTool == .pen { return }
         finishContainerDrop()
         finishPrecision(); finishGesture(beginTextEditing: true); needsDisplay = true
     }
@@ -184,18 +234,168 @@ struct CanvasHost: NSViewRepresentable {
         if event.keyCode == 53 {
             finishText(commit: false)
             finishPrecision(cancel: true)
-            if start != nil {
+            if pathEditingID != nil {
+                finishPathEditing(commit: false)
+                needsDisplay = true
+                return
+            }
+            if creationTool == .pen {
+                let tool = creationTool
+                session.cancelGesture()
+                session.selection = []
+                finishCreation(tool: tool)
+                creation = nil; creationTool = nil; penPoints = []
+                session.message = "路径至少需要两个节点"
+            } else if start != nil {
                 session.cancelGesture(); start = nil; creation = nil; resizing = nil
                 finishCreation(tool: creationTool); creationTool = nil
             }
             clearContainerDrag()
             guides = []; needsDisplay = true; return
         }
+        if creationTool == .pen && (event.keyCode == 36 || event.keyCode == 76) {
+            finishPen()
+            return
+        }
         if nudge(with: event) { return }
         if precision != nil { session.finishInput?() }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
-        let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "t": .text]
+        let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "p": .pen, "t": .text]
         if let tool = tools[event.charactersIgnoringModifiers ?? ""] { session.tool = tool } else { super.keyDown(with: event) }
+    }
+
+    private func beginPen(at point: CGPoint) {
+        session.finishInput?()
+        window?.makeFirstResponder(self)
+        session.beginGesture()
+        penPoints = [point]
+        do {
+            let style = NodeStyle(fill: nil, stroke: RGBAColor(red: 0.27, green: 0.48, blue: 0.95), strokeWidth: 2)
+            let node = try PathEditing.makeNode(name: session.tool.title, points: penPoints, style: style)
+            guard session.create(node) else {
+                session.cancelGesture(); penPoints = []; return
+            }
+            creation = node.id
+            creationTool = .pen
+            session.message = "点击添加路径节点 · Enter 完成 · Escape 取消"
+            needsDisplay = true
+        } catch {
+            session.cancelGesture()
+            penPoints = []
+            session.message = "无法创建路径"
+        }
+    }
+
+    private func beginPathEditing(_ id: UUID, at point: CGPoint? = nil) {
+        session.finishInput?()
+        pathEditingID = id
+        session.selection = [id]
+        if let point,
+           let node = session.document.node(id: id),
+           let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
+            pathEditingPoint = nearestPathPoint(in: node, to: point, transform: transform)
+            if pathEditingPoint != nil { session.beginGesture() }
+        } else {
+            pathEditingPoint = nil
+        }
+        session.message = "拖动节点编辑路径 · Escape 退出节点编辑"
+        needsDisplay = true
+    }
+
+    private func finishPathEditing(commit: Bool) {
+        guard pathEditingID != nil else { return }
+        if pathEditingPoint != nil {
+            if commit { session.commitGesture() } else { session.cancelGesture() }
+        }
+        pathEditingID = nil
+        pathEditingPoint = nil
+        needsDisplay = true
+    }
+
+    private func pathPoint(_ reference: PathPointReference, in node: DesignNode) -> CGPoint? {
+        guard node.path.commands.indices.contains(reference.commandIndex) else { return nil }
+        switch (node.path.commands[reference.commandIndex], reference.role) {
+        case (.move(let point), .destination), (.line(let point), .destination): return point
+        case let (.cubic(control1, _, _), .control1): return control1
+        case let (.cubic(_, control2, _), .control2): return control2
+        case let (.cubic(_, _, destination), .destination): return destination
+        default: return nil
+        }
+    }
+
+    private func pathPointReferences(in node: DesignNode) -> [PathPointReference] {
+        node.path.commands.enumerated().flatMap { index, command in
+            switch command {
+            case .move, .line: return [PathPointReference(commandIndex: index)]
+            case .cubic: return [PathPointReference(commandIndex: index, role: .control1),
+                                  PathPointReference(commandIndex: index, role: .control2),
+                                  PathPointReference(commandIndex: index)]
+            case .close: return []
+            }
+        }
+    }
+
+    private func nearestPathPoint(in node: DesignNode, to worldPoint: CGPoint,
+                                  transform: CGAffineTransform) -> PathPointReference? {
+        let localPoint = worldPoint.applying(transform.inverted())
+        return pathPointReferences(in: node).compactMap { reference -> (PathPointReference, CGFloat)? in
+            guard let point = pathPoint(reference, in: node) else { return nil }
+            return (reference, hypot(point.x - localPoint.x, point.y - localPoint.y))
+        }.filter { $0.1 <= 12 / session.zoom }.min { $0.1 < $1.1 }?.0
+    }
+
+    private func drawPathEditingOverlay(in context: CGContext) {
+        guard let id = pathEditingID, let node = session.document.node(id: id),
+              let transform = SceneGeometry.worldTransform(id: id, in: session.page) else { return }
+        context.saveGState()
+        context.concatenate(transform)
+        let radius = 5 / session.zoom
+        for reference in pathPointReferences(in: node) {
+            guard let point = pathPoint(reference, in: node) else { continue }
+            let isControl = reference.role != .destination
+            context.setFillColor((isControl ? NSColor.white : EditorPalette.accent).cgColor)
+            context.setStrokeColor(EditorPalette.accent.cgColor)
+            context.setLineWidth(1 / session.zoom)
+            let circle = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
+            context.fillEllipse(in: circle)
+            context.strokeEllipse(in: circle)
+        }
+        context.restoreGState()
+    }
+
+    private func appendPenPoint(_ point: CGPoint, close: Bool) {
+        guard let id = creation, creationTool == .pen else { return }
+        let nearStart = penPoints.count >= 2 && hypot(point.x - penPoints[0].x, point.y - penPoints[0].y) <= 10 / session.zoom
+        if (close || nearStart) && penPoints.count >= 2 {
+            do {
+                let geometry = try PathEditing.geometry(points: penPoints, closed: true)
+                session.document.updateNode(id: id) { $0.frame = geometry.frame; $0.path = geometry.path }
+                finishPen()
+            } catch {
+                session.message = "无法闭合路径"
+            }
+            return
+        }
+        penPoints.append(point)
+        updatePenNode(id: id)
+        needsDisplay = true
+    }
+
+    private func updatePenNode(id: UUID) {
+        guard let geometry = try? PathEditing.geometry(points: penPoints) else { return }
+        session.document.updateNode(id: id) { $0.frame = geometry.frame; $0.path = geometry.path }
+    }
+
+    private func finishPen() {
+        guard creationTool == .pen else { return }
+        guard penPoints.count >= 2 else {
+            session.cancelGesture()
+            session.selection = []
+            creation = nil; creationTool = nil; penPoints = []
+            session.message = "路径至少需要两个节点"
+            return
+        }
+        finishGesture()
     }
     override func keyUp(with event: NSEvent) {
         if releaseNudge(event.keyCode) { return }

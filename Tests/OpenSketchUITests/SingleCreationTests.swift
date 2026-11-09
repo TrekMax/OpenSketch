@@ -85,6 +85,60 @@ import OpenSketchCore
         #expect(fixture.session.tool == .select)
     }
 
+    @Test func penCreatesOpenPathAndCommitsAsOneUndo() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 60))
+        try fixture.click(at: CGPoint(x: 100, y: 140))
+        #expect(fixture.session.page.nodes.count == 1)
+        #expect(fixture.session.history.isEditing)
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        let node = try #require(fixture.session.page.nodes.first)
+        #expect(node.kind == .path)
+        #expect(node.path.commands == [
+            .move(to: CGPoint(x: 0, y: 0)),
+            .line(to: CGPoint(x: 100, y: 20)),
+            .line(to: CGPoint(x: 60, y: 100))
+        ])
+        #expect(fixture.session.tool == .select)
+        #expect(!fixture.session.history.isEditing)
+        fixture.session.undo()
+        #expect(fixture.session.page.nodes.isEmpty)
+    }
+
+    @Test func penDoubleClickClosesPathAndEscapeCancelsDraft() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 40))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 40, y: 40), clickCount: 2))
+        let closed = try #require(fixture.session.page.nodes.first)
+        #expect(closed.path.commands.last == .close)
+        #expect(fixture.session.tool == .select)
+
+        fixture.session.tool = .pen
+        try fixture.click(at: CGPoint(x: 200, y: 200))
+        fixture.canvas.keyDown(with: try fixture.key(code: 53, characters: "\u{1b}"))
+        #expect(fixture.session.page.nodes.count == 1)
+        #expect(fixture.session.tool == .select)
+        #expect(!fixture.session.history.isEditing)
+    }
+
+    @Test func doubleClickingAPathEntersNodeEditingAndDraggingMovesItsPoint() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 40))
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 40, y: 40), clickCount: 2))
+        fixture.canvas.mouseDragged(with: try fixture.mouse(.leftMouseDragged, at: CGPoint(x: 60, y: 60)))
+        fixture.canvas.mouseUp(with: try fixture.mouse(.leftMouseUp, at: CGPoint(x: 60, y: 60)))
+        let node = try #require(fixture.session.page.nodes.first)
+        #expect(node.path.commands.first == .move(to: CGPoint(x: 20, y: 20)))
+        #expect(fixture.session.history.canUndo)
+    }
+
     @Test(arguments: [false, true])
     func completingOrCancellingDragPreservesNewTool(cancel: Bool) throws {
         let fixture = CanvasFixture(tool: .rectangle)
@@ -159,8 +213,8 @@ import OpenSketchCore
         window.makeFirstResponder(canvas)
     }
 
-    func mouse(_ type: NSEvent.EventType, at point: CGPoint) throws -> NSEvent {
-        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    func mouse(_ type: NSEvent.EventType, at point: CGPoint, clickCount: Int = 1) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: clickCount, pressure: 1))
     }
 
     func key(code: UInt16, characters: String, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {

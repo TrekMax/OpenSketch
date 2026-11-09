@@ -17,7 +17,7 @@ import OpenSketchCore
     var pan = CGPoint(x: 60, y: 60)
     var grid = true
     var snapping = true
-    private var status = LocalizedMessage.key("拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / T 文字")
+    private var status = LocalizedMessage.key("拖动画布创建图形 · V 选择 / F 画板 / R 矩形 / O 椭圆 / P 钢笔 / T 文字")
     var message: String {
         get { status.text() }
         set { status = .key(newValue) }

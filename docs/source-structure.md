@@ -16,7 +16,7 @@ OpenSketchApp → OpenSketchUI → OpenSketchCore
 | --- | --- | --- |
 | `Editor/Model` | `DocumentModel.swift`、`DocumentOperations.swift` | 文档值、树查询与基础增删改 |
 | `Editor/Session` | `DocumentHistory.swift` | 编辑事务、撤销重做与保存快照 |
-| `Editor/Canvas` | `CanvasEditing.swift`、`SceneGeometry.swift` | 框选、位移、吸附、变换、命中和路径几何 |
+| `Editor/Canvas` | `CanvasEditing.swift`、`SceneGeometry.swift`、`PathEditing.swift` | 框选、位移、吸附、变换、命中、路径几何和节点操作 |
 | `Editor/Layers` | `LayerEditing.swift`、`LayerTreeEditing.swift`、`ContainerEditing.swift` | 编组、排序、对齐分布和容器归属 |
 | `IO` | `DocumentCodec.swift`、`SketchMetadata.swift` | 原生文档编码、校验和包读写；Sketch 元数据解码 |
 
