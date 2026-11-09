@@ -41,6 +41,8 @@ struct CanvasHost: NSViewRepresentable {
     private var pathEditingPoint: PathPointReference?
     private var pathSelectedPoints: Set<PathPointReference> = []
     private var pathDragOrigin: CGPoint?
+    private var pathDragNode: DesignNode?
+    private var pathDragTransform: CGAffineTransform?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
@@ -157,6 +159,8 @@ struct CanvasHost: NSViewRepresentable {
                     pathSelectedPoints = [reference]
                     pathEditingPoint = reference
                     pathDragOrigin = point
+                    pathDragNode = node
+                    pathDragTransform = transform
                     session.beginGesture()
                 }
                 return
@@ -217,18 +221,18 @@ struct CanvasHost: NSViewRepresentable {
             return
         }
         if let id = pathEditingID, let reference = pathEditingPoint,
-           let transform = SceneGeometry.worldTransform(id: id, in: session.page),
+           let transform = pathDragTransform,
            let origin = pathDragOrigin,
-           let node = session.document.node(id: id) {
+           let baseline = pathDragNode {
             let inverse = transform.inverted()
             let localPoint = p.applying(inverse)
             let localOrigin = origin.applying(inverse)
             let delta = CGSize(width: localPoint.x - localOrigin.x, height: localPoint.y - localOrigin.y)
             let references = pathSelectedPoints.isEmpty ? [reference] : Array(pathSelectedPoints)
-            var candidate = node.path
+            var candidate = baseline.path
             do {
                 for selected in references {
-                    guard let point = pathPoint(selected, in: node) else { continue }
+                    guard let point = pathPoint(selected, in: baseline) else { continue }
                     let destination = CGPoint(x: point.x + delta.width, y: point.y + delta.height)
                     if selected.role == .destination {
                         candidate = try PathEditing.movePoint(selected, to: destination, in: candidate)
@@ -237,7 +241,7 @@ struct CanvasHost: NSViewRepresentable {
                                                                mode: handleMode(for: event.modifierFlags), in: candidate)
                     }
                 }
-                applyEditedPath(candidate, to: id)
+                applyEditedPath(candidate, to: id, baseFrame: baseline.frame)
             } catch { }
             needsDisplay = true
             return
@@ -279,6 +283,8 @@ struct CanvasHost: NSViewRepresentable {
             session.commitGesture()
             pathEditingPoint = nil
             pathDragOrigin = nil
+            pathDragNode = nil
+            pathDragTransform = nil
             needsDisplay = true
             return
         }
@@ -377,6 +383,8 @@ struct CanvasHost: NSViewRepresentable {
         if let point,
            let node = session.document.node(id: id),
            let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
+            pathDragNode = node
+            pathDragTransform = transform
             pathEditingPoint = insert ? insertPathPoint(node: node, at: point, transform: transform) : nearestPathPoint(in: node, to: point, transform: transform)
             if let pathEditingPoint {
                 pathSelectedPoints = [pathEditingPoint]
@@ -399,13 +407,15 @@ struct CanvasHost: NSViewRepresentable {
         pathEditingPoint = nil
         pathSelectedPoints = []
         pathDragOrigin = nil
+        pathDragNode = nil
+        pathDragTransform = nil
         needsDisplay = true
     }
 
-    private func applyEditedPath(_ path: VectorPath, to id: UUID) {
+    private func applyEditedPath(_ path: VectorPath, to id: UUID, baseFrame: CGRect? = nil) {
         guard let geometry = try? PathEditing.normalized(path) else { return }
         session.document.updateNode(id: id) {
-            let oldFrame = $0.frame
+            let oldFrame = baseFrame ?? $0.frame
             $0.frame = CGRect(x: oldFrame.minX + geometry.frame.minX,
                               y: oldFrame.minY + geometry.frame.minY,
                               width: geometry.frame.width,
