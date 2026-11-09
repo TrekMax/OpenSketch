@@ -63,6 +63,17 @@ import OpenSketchCore
         #expect(node.style.strokeWidth == 4)
     }
 
+    @Test func svgImportPreservesGroupsAndInheritedStyles() throws {
+        let svg = "<svg width=\"100\" height=\"80\"><g fill=\"#00ff00\" transform=\"translate(5 6)\"><rect x=\"10\" y=\"20\" width=\"20\" height=\"10\"/><g stroke=\"#0000ff\"><circle cx=\"60\" cy=\"30\" r=\"8\"/></g></g></svg>"
+        let document = try SVGImporter.document(data: Data(svg.utf8), name: "groups")
+        let group = try #require(document.pages[0].nodes.first)
+        #expect(group.kind == .group)
+        #expect(group.children.count == 2)
+        #expect(group.children[0].style.fill == RGBAColor(red: 0, green: 1, blue: 0))
+        #expect(group.children[1].kind == .group)
+        #expect(group.children[1].children[0].style.stroke == RGBAColor(red: 0, green: 0, blue: 1))
+    }
+
     @Test(arguments: [(1.0, 21, 11), (2.0, 41, 21), (3.0, 61, 31)])
     func fractionalCropKeepsTopBottomAndEdgeCoverage(scale: Double, width: Int, height: Int) throws {
         let bounds = CGRect(x: 10.5, y: 20.25, width: 20.25, height: 10.25)

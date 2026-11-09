@@ -19,6 +19,8 @@ import OpenSketchCore
         var height: CGFloat?
         var viewBox: CGRect?
         private var text = ""
+        private var groups: [[DesignNode]] = []
+        private var styleContexts: [[String: String]] = [[:]]
 
         func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName qName: String?, attributes: [String : String] = [:]) {
             if name == "svg" {
@@ -27,25 +29,36 @@ import OpenSketchCore
                 if width == nil { width = viewBox?.width }
                 if height == nil { height = viewBox?.height }
             }
-            guard var node = makeNode(name: name, attributes: attributes) else { return }
+            if name == "g" {
+                groups.append([])
+                styleContexts.append(merged(attributes))
+                return
+            }
+            guard var node = makeNode(name: name, attributes: attributes, inherited: styleContexts.last ?? [:]) else { return }
             apply(transform: attributes["transform"], to: &node)
-            nodes.append(node)
+            if groups.isEmpty { nodes.append(node) } else { groups[groups.count - 1].append(node) }
             if name == "text" { text = "" }
         }
 
         func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
         func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName qName: String?) {
+            if name == "g", let children = groups.popLast(), !children.isEmpty {
+                _ = styleContexts.popLast()
+                let group = DesignNode(name: "SVG Group", kind: .group, frame: CGRect(x: 0, y: 0, width: width ?? 1440, height: height ?? 900), children: children)
+                if groups.isEmpty { nodes.append(group) } else { groups[groups.count - 1].append(group) }
+                return
+            }
             guard name == "text", let index = nodes.indices.last else { return }
             nodes[index].text = text
             text = ""
         }
 
-        private func makeNode(name: String, attributes: [String: String]) -> DesignNode? {
+        private func makeNode(name: String, attributes: [String: String], inherited: [String: String]) -> DesignNode? {
             let x = number(attributes["x"]) ?? 0, y = number(attributes["y"]) ?? 0
-            let merged = styled(attributes)
-            let fill = color(merged["fill"])
-            let stroke = color(merged["stroke"])
-            let style = NodeStyle(fill: fill, stroke: stroke, strokeWidth: number(merged["stroke-width"]) ?? 1)
+            var values = inherited; values.merge(merged(attributes)) { _, child in child }
+            let fill = color(values["fill"])
+            let stroke = color(values["stroke"])
+            let style = NodeStyle(fill: fill, stroke: stroke, strokeWidth: number(values["stroke-width"]) ?? 1)
             switch name {
             case "rect":
                 return DesignNode(name: "SVG Rectangle", kind: .rectangle, frame: CGRect(x: x, y: y, width: number(attributes["width"]) ?? 0, height: number(attributes["height"]) ?? 0), style: style, text: "")
@@ -63,14 +76,14 @@ import OpenSketchCore
                 let bounds = pathBounds(path)
                 return DesignNode(name: "SVG Path", kind: .path, frame: bounds, style: style, path: path)
             case "text":
-                return DesignNode(name: "SVG Text", kind: .text, frame: CGRect(x: x, y: y, width: 300, height: 60), style: style, fontSize: number(merged["font-size"]) ?? 24)
+                return DesignNode(name: "SVG Text", kind: .text, frame: CGRect(x: x, y: y, width: 300, height: 60), style: style, fontSize: number(values["font-size"]) ?? 24)
             default: return nil
             }
         }
 
         private func apply(transform value: String?, to node: inout DesignNode) {
             guard let value else { return }
-            let pattern = #"(translate|rotate|scale)\s*\(([^)]*)\)"#
+            let pattern = #"(translate|rotate|scale|matrix)\s*\(([^)]*)\)"#
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
             for match in regex.matches(in: value, range: NSRange(value.startIndex..., in: value)).reversed() {
                 guard let typeRange = Range(match.range(at: 1), in: value),
@@ -86,12 +99,18 @@ import OpenSketchCore
                     let y = values.count > 1 ? values[1] : x
                     node.frame.origin.x *= x; node.frame.origin.y *= y
                     node.frame.size.width *= abs(x); node.frame.size.height *= abs(y)
+                } else if type == "matrix", values.count == 6 {
+                    node.frame.origin = node.frame.origin.applying(CGAffineTransform(a: values[0], b: values[1], c: values[2], d: values[3], tx: values[4], ty: values[5]))
+                    node.rotation += atan2(values[1], values[0]) * 180 / .pi
                 }
             }
         }
 
-        private func styled(_ attributes: [String: String]) -> [String: String] {
+        private func merged(_ attributes: [String: String]) -> [String: String] {
             var result = attributes
+            for key in ["fill", "stroke", "stroke-width", "font-size"] where result[key] == nil {
+                if let value = attributes[key] { result[key] = value }
+            }
             for part in (attributes["style"] ?? "").split(separator: ";") {
                 let pair = part.split(separator: ":", maxSplits: 1).map(String.init)
                 if pair.count == 2 { result[pair[0].trimmingCharacters(in: .whitespaces)] = pair[1].trimmingCharacters(in: .whitespaces) }

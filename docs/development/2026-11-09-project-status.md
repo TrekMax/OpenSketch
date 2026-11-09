@@ -84,7 +84,7 @@ M2 已启动，第一项路径基础能力已完成初版：
 - 布尔运算已完成 Core 几何后端和基础图层菜单/检查器命令接入；当前结果是可恢复的路径快照。
 - 渐变填充已完成基础数据模型、格式校验、画布渲染、命中测试、PNG/PDF 共用渲染链路、检查器渐变编辑和基础描边设置。
 - SVG 导出已加入基础序列化器，覆盖形状、路径、文字、线性渐变、透明度和常见描边；SVG 导入、多重样式和复杂效果仍待完善。
-- 有限 SVG 导入已加入首版，支持 `rect`、`circle`、`ellipse`、`line`、基础 `path`（M/L/C/Z）、`text`、`viewBox`、基础 `translate/rotate/scale` 和 inline style，导入后生成可编辑 OpenSketch 图层。
+- 有限 SVG 导入已加入首版，支持 `rect`、`circle`、`ellipse`、`line`、基础 `path`（M/L/C/Z）、`text`、`g` 分组、`viewBox`、基础 `translate/rotate/scale`、`matrix` 和 inline style，导入后生成可编辑 OpenSketch 图层。
 
 ## 当前验证命令
 
