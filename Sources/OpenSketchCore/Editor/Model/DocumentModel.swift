@@ -41,6 +41,9 @@ public struct LinearGradient: Codable, Equatable, Sendable {
     }
 }
 
+public enum StrokeLineCap: String, Codable, CaseIterable, Sendable { case butt, round, square }
+public enum StrokeLineJoin: String, Codable, CaseIterable, Sendable { case miter, round, bevel }
+
 public struct NodeStyle: Codable, Equatable, Sendable {
     public var fill: RGBAColor?
     public var linearGradient: LinearGradient?
@@ -48,10 +51,14 @@ public struct NodeStyle: Codable, Equatable, Sendable {
     public var strokeWidth: Double
     public var opacity: Double
     public var cornerRadius: Double
+    public var strokeLineCap: StrokeLineCap
+    public var strokeLineJoin: StrokeLineJoin
+    public var miterLimit: Double
     public init(fill: RGBAColor? = nil, stroke: RGBAColor? = nil, strokeWidth: Double = 1,
                 opacity: Double = 1, cornerRadius: Double = 0) {
         self.fill = fill; self.linearGradient = nil; self.stroke = stroke; self.strokeWidth = strokeWidth
         self.opacity = opacity; self.cornerRadius = cornerRadius
+        self.strokeLineCap = .butt; self.strokeLineJoin = .miter; self.miterLimit = 10
     }
     public static func `default`(for kind: NodeKind) -> Self {
         switch kind {
@@ -61,6 +68,24 @@ public struct NodeStyle: Codable, Equatable, Sendable {
         case .rectangle, .ellipse, .path:
             Self(fill: RGBAColor(red: 0.27, green: 0.48, blue: 0.95))
         }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case fill, linearGradient, stroke, strokeWidth, opacity, cornerRadius
+        case strokeLineCap, strokeLineJoin, miterLimit
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fill = try container.decodeIfPresent(RGBAColor.self, forKey: .fill)
+        linearGradient = try container.decodeIfPresent(LinearGradient.self, forKey: .linearGradient)
+        stroke = try container.decodeIfPresent(RGBAColor.self, forKey: .stroke)
+        strokeWidth = try container.decodeIfPresent(Double.self, forKey: .strokeWidth) ?? 1
+        opacity = try container.decodeIfPresent(Double.self, forKey: .opacity) ?? 1
+        cornerRadius = try container.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
+        strokeLineCap = try container.decodeIfPresent(StrokeLineCap.self, forKey: .strokeLineCap) ?? .butt
+        strokeLineJoin = try container.decodeIfPresent(StrokeLineJoin.self, forKey: .strokeLineJoin) ?? .miter
+        miterLimit = try container.decodeIfPresent(Double.self, forKey: .miterLimit) ?? 10
     }
 }
 

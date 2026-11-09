@@ -120,7 +120,65 @@ struct InspectorView: View {
                 .background(Color(nsColor: EditorPalette.inspectorControl), in: RoundedRectangle(cornerRadius: 6))
                 .accessibilityIdentifier("inspector.\(identifier)")
             }
+            if !stroke {
+                Picker(L10n.text("填充类型"), selection: Binding(
+                    get: { node.style.linearGradient == nil ? 0 : 1 },
+                    set: { value in
+                        session.update(node.id) { styleNode in
+                            if value == 0 { styleNode.style.linearGradient = nil }
+                            else if styleNode.style.linearGradient == nil {
+                                let base = styleNode.style.fill ?? .black
+                                styleNode.style.linearGradient = LinearGradient(stops: [
+                                    GradientStop(position: 0, color: base),
+                                    GradientStop(position: 1, color: .white)
+                                ])
+                            }
+                        }
+                    }
+                )) {
+                    Text(L10n.text("纯色")).tag(0)
+                    Text(L10n.text("线性渐变")).tag(1)
+                }
+                .accessibilityIdentifier("inspector.fillType")
+                if let gradient = node.style.linearGradient {
+                    ForEach(Array(gradient.stops.indices), id: \.self) { index in
+                        HStack(spacing: 6) {
+                            ColorPicker("", selection: Binding(get: {
+                                Color(nsColor: gradient.stops[index].color.nsColor)
+                            }, set: { color in
+                                session.update(node.id) { $0.style.linearGradient?.stops[index].color = RGBAColor(NSColor(color)) }
+                            })).labelsHidden()
+                            TextField("0", value: Binding(get: {
+                                gradient.stops[index].position
+                            }, set: { value in
+                                session.update(node.id) { $0.style.linearGradient?.stops[index].position = min(1, max(0, value)) }
+                            }), format: .number)
+                            .frame(width: 48).textFieldStyle(.roundedBorder)
+                            if gradient.stops.count > 2 {
+                                Button { session.update(node.id) { $0.style.linearGradient?.stops.remove(at: index) } } label: {
+                                    Image(systemName: "minus.circle")
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Button(L10n.text("添加渐变停止点")) {
+                        session.update(node.id) { $0.style.linearGradient?.stops.append(GradientStop(position: 0.5, color: .white)) }
+                    }.buttonStyle(.link)
+                }
+            }
             if stroke { number(.strokeWidth, node: node) }
+            if stroke, color != nil {
+                Picker(L10n.text("线帽"), selection: Binding(get: { node.style.strokeLineCap }, set: { value in session.update(node.id) { $0.style.strokeLineCap = value } })) {
+                    Text(L10n.text("平头")).tag(StrokeLineCap.butt)
+                    Text(L10n.text("圆头")).tag(StrokeLineCap.round)
+                    Text(L10n.text("方头")).tag(StrokeLineCap.square)
+                }
+                Picker(L10n.text("连接"), selection: Binding(get: { node.style.strokeLineJoin }, set: { value in session.update(node.id) { $0.style.strokeLineJoin = value } })) {
+                    Text(L10n.text("尖角")).tag(StrokeLineJoin.miter)
+                    Text(L10n.text("圆角")).tag(StrokeLineJoin.round)
+                    Text(L10n.text("斜角")).tag(StrokeLineJoin.bevel)
+                }
+            }
         }
     }
 }

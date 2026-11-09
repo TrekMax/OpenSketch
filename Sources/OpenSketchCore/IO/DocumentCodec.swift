@@ -174,6 +174,7 @@ public enum DocumentCodec {
                 try gradient(node.style.linearGradient)
                 try number(node.style.strokeWidth, in: 0...1e5, field: "strokeWidth")
                 try number(node.style.cornerRadius, in: 0...1e7, field: "cornerRadius")
+                try number(node.style.miterLimit, in: 1...1e5, field: "miterLimit")
                 try number(node.style.opacity, in: 0...1, field: "opacity")
                 try path(node.path)
                 guard node.children.isEmpty || node.kind == .frame || node.kind == .group else {

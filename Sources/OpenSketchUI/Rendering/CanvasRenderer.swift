@@ -11,7 +11,7 @@ import OpenSketchCore
     static func localBounds(_ node: DesignNode) -> CGRect {
         let path = node.kind == .path ? SceneGeometry.cgPath(for: node.path) : CGPath(rect: CGRect(origin: .zero, size: node.frame.size), transform: nil)
         var bounds = path.boundingBoxOfPath
-        if node.style.stroke != nil, node.style.strokeWidth > 0 { bounds = bounds.union(path.copy(strokingWithWidth: node.style.strokeWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10).boundingBoxOfPath) }
+        if node.style.stroke != nil, node.style.strokeWidth > 0 { bounds = bounds.union(path.copy(strokingWithWidth: node.style.strokeWidth, lineCap: node.style.strokeLineCap.cg, lineJoin: node.style.strokeLineJoin.cg, miterLimit: CGFloat(node.style.miterLimit)).boundingBoxOfPath) }
         return bounds
     }
     static func selectionGeometry(id: UUID, page: DesignPage) -> SelectionGeometry? {
@@ -55,7 +55,7 @@ import OpenSketchCore
             } else if let fill = node.style.fill {
                 c.setFillColor(fill.nsColor.cgColor); c.addPath(path); c.fillPath()
             }
-            if let stroke = node.style.stroke, node.style.strokeWidth > 0 { c.setStrokeColor(stroke.nsColor.cgColor); c.setLineWidth(node.style.strokeWidth); c.setLineCap(.butt); c.setLineJoin(.miter); c.setMiterLimit(10); c.addPath(path); c.strokePath() }
+            if let stroke = node.style.stroke, node.style.strokeWidth > 0 { c.setStrokeColor(stroke.nsColor.cgColor); c.setLineWidth(node.style.strokeWidth); c.setLineCap(node.style.strokeLineCap.cg); c.setLineJoin(node.style.strokeLineJoin.cg); c.setMiterLimit(CGFloat(node.style.miterLimit)); c.addPath(path); c.strokePath() }
         }
         if node.kind == .frame && node.clipsContent { c.clip(to: rect) }
         for child in node.children { draw(child, in: c) }
@@ -75,3 +75,6 @@ import OpenSketchCore
         return result.isNull || result.isEmpty ? CGRect(origin: .zero, size: page.size) : result.integral
     }
 }
+
+private extension StrokeLineCap { var cg: CGLineCap { switch self { case .butt: .butt; case .round: .round; case .square: .square } } }
+private extension StrokeLineJoin { var cg: CGLineJoin { switch self { case .miter: .miter; case .round: .round; case .bevel: .bevel } } }

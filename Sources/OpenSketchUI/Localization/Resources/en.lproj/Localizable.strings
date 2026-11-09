@@ -197,6 +197,17 @@
 "拖动节点编辑路径 · Escape 退出节点编辑" = "Drag nodes to edit the path · Escape to leave node editing";
 "无法切换路径闭合状态" = "Unable to toggle the path's closed state";
 "无法反向路径" = "Unable to reverse the path";
+"填充类型" = "Fill Type";
+"纯色" = "Solid";
+"线性渐变" = "Linear Gradient";
+"添加渐变停止点" = "Add Gradient Stop";
+"线帽" = "Line Cap";
+"连接" = "Line Join";
+"平头" = "Butt";
+"圆头" = "Round";
+"方头" = "Square";
+"尖角" = "Miter";
+"斜角" = "Bevel";
 "布尔运算" = "Boolean Operations";
 "合并形状" = "Union Shapes";
 "相交形状" = "Intersect Shapes";
