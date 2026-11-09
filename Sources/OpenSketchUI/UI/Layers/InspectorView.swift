@@ -55,6 +55,17 @@ struct InspectorView: View {
                     Toggle(L10n.text("裁剪内容"), isOn: Binding(get: { node.clipsContent }, set: { value in session.update(node.id) { $0.clipsContent = value } }))
                         .accessibilityIdentifier("inspector.clip")
                 }
+                if node.kind == .path {
+                    sectionTitle(L10n.text("路径"))
+                    HStack(spacing: 6) {
+                        Button(L10n.text("编辑节点")) { session.finishInput?(); session.pathEditingRequest = node.id }
+                            .accessibilityIdentifier("inspector.pathEdit")
+                        Button(L10n.text("闭合/开放")) { session.togglePathClosed?(node.id) }
+                            .accessibilityIdentifier("inspector.pathToggleClosed")
+                        Button(L10n.text("反向")) { session.reversePath?(node.id) }
+                            .accessibilityIdentifier("inspector.pathReverse")
+                    }
+                }
                 sectionTitle(L10n.text("样式"))
                 HStack(spacing: 8) {
                     number(.opacity, node: node)

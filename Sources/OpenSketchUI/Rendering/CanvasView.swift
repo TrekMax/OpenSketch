@@ -6,7 +6,11 @@ struct CanvasHost: NSViewRepresentable {
     @Environment(\.locale) private var locale
     var session: EditorSession
     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
-    func updateNSView(_ view: CanvasView, context: Context) { _ = locale; _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; _ = session.snapping; _ = session.needsInitialFit; view.refreshLanguage(); view.needsDisplay = true; view.needsLayout = true }
+    func updateNSView(_ view: CanvasView, context: Context) {
+        _ = locale; _ = session.document; _ = session.selection; _ = session.zoom; _ = session.pan; _ = session.grid; _ = session.snapping; _ = session.needsInitialFit
+        if let id = session.pathEditingRequest { session.pathEditingRequest = nil; view.beginPathEditing(id) }
+        view.refreshLanguage(); view.needsDisplay = true; view.needsLayout = true
+    }
 }
 @MainActor final class InlineTextView: NSTextView {
     var commitEditing: (() -> Void)?
@@ -73,6 +77,8 @@ struct CanvasHost: NSViewRepresentable {
             self.finishText(commit: true)
             self.zoom(to: self.session.zoom * factor, anchor: CGPoint(x: self.bounds.midX, y: self.bounds.midY))
         }
+        session.togglePathClosed = { [weak self] id in self?.togglePathClosed(id: id) }
+        session.reversePath = { [weak self] id in self?.reversePath(id: id) }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
     func refreshLanguage() {
@@ -338,6 +344,11 @@ struct CanvasHost: NSViewRepresentable {
                 return
             }
         }
+        if (event.keyCode == 36 || event.keyCode == 76), pathEditingID == nil,
+           let selected = session.selected, selected.kind == .path {
+            beginPathEditing(selected.id)
+            return
+        }
         if nudge(with: event) { return }
         if precision != nil { session.finishInput?() }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
@@ -373,7 +384,7 @@ struct CanvasHost: NSViewRepresentable {
         }
     }
 
-    private func beginPathEditing(_ id: UUID, at point: CGPoint? = nil, insert: Bool = false) {
+    func beginPathEditing(_ id: UUID, at point: CGPoint? = nil, insert: Bool = false) {
         session.finishInput?()
         pathEditingID = id
         pathSelectedPoints = []
@@ -430,8 +441,8 @@ struct CanvasHost: NSViewRepresentable {
         return .free
     }
 
-    private func togglePathClosed() {
-        guard let id = pathEditingID, let node = session.document.node(id: id) else { return }
+    private func togglePathClosed(id: UUID? = nil) {
+        guard let id = id ?? pathEditingID, let node = session.document.node(id: id) else { return }
         do {
             session.beginGesture()
             let path = try PathEditing.togglingClosed(node.path)
@@ -443,8 +454,8 @@ struct CanvasHost: NSViewRepresentable {
         }
     }
 
-    private func reversePath() {
-        guard let id = pathEditingID, let node = session.document.node(id: id) else { return }
+    private func reversePath(id: UUID? = nil) {
+        guard let id = id ?? pathEditingID, let node = session.document.node(id: id) else { return }
         do {
             session.beginGesture()
             let path = try PathEditing.reversed(node.path)

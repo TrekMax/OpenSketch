@@ -41,6 +41,9 @@ import OpenSketchCore
     var fitCanvas: (() -> Void)?
     var zoomCanvas: ((CGFloat) -> Void)?
     var setCanvasZoom: ((CGFloat) -> Void)?
+    var pathEditingRequest: UUID?
+    var togglePathClosed: ((UUID) -> Void)?
+    var reversePath: ((UUID) -> Void)?
     init(document: DesignDocument? = nil) {
         let document = document ?? DesignDocument(name: L10n.text("未命名"), pages: [DesignPage(name: L10n.format("页面 %d", 1))])
         self.document = document; history = DocumentHistory(document: document); pageID = document.pages[0].id
