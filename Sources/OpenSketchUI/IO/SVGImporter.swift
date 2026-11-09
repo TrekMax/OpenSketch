@@ -42,9 +42,10 @@ import OpenSketchCore
 
         private func makeNode(name: String, attributes: [String: String]) -> DesignNode? {
             let x = number(attributes["x"]) ?? 0, y = number(attributes["y"]) ?? 0
-            let fill = color(attributes["fill"])
-            let stroke = color(attributes["stroke"])
-            let style = NodeStyle(fill: fill, stroke: stroke, strokeWidth: number(attributes["stroke-width"]) ?? 1)
+            let merged = styled(attributes)
+            let fill = color(merged["fill"])
+            let stroke = color(merged["stroke"])
+            let style = NodeStyle(fill: fill, stroke: stroke, strokeWidth: number(merged["stroke-width"]) ?? 1)
             switch name {
             case "rect":
                 return DesignNode(name: "SVG Rectangle", kind: .rectangle, frame: CGRect(x: x, y: y, width: number(attributes["width"]) ?? 0, height: number(attributes["height"]) ?? 0), style: style, text: "")
@@ -62,14 +63,14 @@ import OpenSketchCore
                 let bounds = pathBounds(path)
                 return DesignNode(name: "SVG Path", kind: .path, frame: bounds, style: style, path: path)
             case "text":
-                return DesignNode(name: "SVG Text", kind: .text, frame: CGRect(x: x, y: y, width: 300, height: 60), style: style, fontSize: number(attributes["font-size"]) ?? 24)
+                return DesignNode(name: "SVG Text", kind: .text, frame: CGRect(x: x, y: y, width: 300, height: 60), style: style, fontSize: number(merged["font-size"]) ?? 24)
             default: return nil
             }
         }
 
         private func apply(transform value: String?, to node: inout DesignNode) {
             guard let value else { return }
-            let pattern = #"(translate|rotate)\s*\(([^)]*)\)"#
+            let pattern = #"(translate|rotate|scale)\s*\(([^)]*)\)"#
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
             for match in regex.matches(in: value, range: NSRange(value.startIndex..., in: value)).reversed() {
                 guard let typeRange = Range(match.range(at: 1), in: value),
@@ -81,8 +82,21 @@ import OpenSketchCore
                     if values.count > 1 { node.frame.origin.y += values[1] }
                 } else if type == "rotate", let angle = values.first {
                     node.rotation += angle
+                } else if type == "scale", let x = values.first {
+                    let y = values.count > 1 ? values[1] : x
+                    node.frame.origin.x *= x; node.frame.origin.y *= y
+                    node.frame.size.width *= abs(x); node.frame.size.height *= abs(y)
                 }
             }
+        }
+
+        private func styled(_ attributes: [String: String]) -> [String: String] {
+            var result = attributes
+            for part in (attributes["style"] ?? "").split(separator: ";") {
+                let pair = part.split(separator: ":", maxSplits: 1).map(String.init)
+                if pair.count == 2 { result[pair[0].trimmingCharacters(in: .whitespaces)] = pair[1].trimmingCharacters(in: .whitespaces) }
+            }
+            return result
         }
 
         private func parsePath(_ value: String) -> VectorPath? {

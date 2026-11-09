@@ -54,6 +54,15 @@ import OpenSketchCore
         #expect(document.pages[0].nodes.first?.rotation == 10)
     }
 
+    @Test func svgImportReadsScaleAndInlineStyle() throws {
+        let svg = "<svg width=\"100\" height=\"80\"><rect x=\"4\" y=\"5\" width=\"20\" height=\"10\" transform=\"scale(2 3)\" style=\"fill:#ff0000;stroke:#0000ff;stroke-width:4\"/></svg>"
+        let node = try #require(SVGImporter.document(data: Data(svg.utf8), name: "styled").pages[0].nodes.first)
+        #expect(node.frame == CGRect(x: 8, y: 15, width: 40, height: 30))
+        #expect(node.style.fill == RGBAColor(red: 1, green: 0, blue: 0))
+        #expect(node.style.stroke == RGBAColor(red: 0, green: 0, blue: 1))
+        #expect(node.style.strokeWidth == 4)
+    }
+
     @Test(arguments: [(1.0, 21, 11), (2.0, 41, 21), (3.0, 61, 31)])
     func fractionalCropKeepsTopBottomAndEdgeCoverage(scale: Double, width: Int, height: Int) throws {
         let bounds = CGRect(x: 10.5, y: 20.25, width: 20.25, height: 10.25)
