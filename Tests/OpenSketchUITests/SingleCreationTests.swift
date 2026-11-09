@@ -157,6 +157,41 @@ import OpenSketchCore
         #expect(fixture.session.history.canUndo)
     }
 
+    @Test func nodeEditingDeletesSelectedPointWithOneUndo() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 140))
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 140, y: 40), clickCount: 2))
+        fixture.canvas.keyDown(with: try fixture.key(code: 51, characters: "\u{7f}"))
+        let node = try #require(fixture.session.page.nodes.first)
+        #expect(node.path.commands == [
+            .move(to: CGPoint(x: 0, y: 0)),
+            .line(to: CGPoint(x: 100, y: 100))
+        ])
+        #expect(fixture.session.history.canUndo)
+        fixture.session.undo()
+        #expect(fixture.session.page.nodes.first?.path.commands.count == 3)
+    }
+
+    @Test func nodeEditingSupportsShiftMultiSelectionAndOptionInsertion() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 140))
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 40, y: 40), clickCount: 2))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 140, y: 140), modifiers: .shift))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 90, y: 40), clickCount: 2, modifiers: .option))
+        fixture.canvas.mouseUp(with: try fixture.mouse(.leftMouseUp, at: CGPoint(x: 90, y: 40), clickCount: 2, modifiers: .option))
+        let node = try #require(fixture.session.page.nodes.first)
+        #expect(node.path.commands.count == 4)
+        #expect(fixture.session.history.canUndo)
+    }
+
     @Test(arguments: [false, true])
     func completingOrCancellingDragPreservesNewTool(cancel: Bool) throws {
         let fixture = CanvasFixture(tool: .rectangle)
@@ -231,8 +266,9 @@ import OpenSketchCore
         window.makeFirstResponder(canvas)
     }
 
-    func mouse(_ type: NSEvent.EventType, at point: CGPoint, clickCount: Int = 1) throws -> NSEvent {
-        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: clickCount, pressure: 1))
+    func mouse(_ type: NSEvent.EventType, at point: CGPoint, clickCount: Int = 1,
+               modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: modifiers, timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: clickCount, pressure: 1))
     }
 
     func key(code: UInt16, characters: String, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {

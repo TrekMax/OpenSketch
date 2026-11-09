@@ -47,6 +47,15 @@ struct PathEditingTests {
         #expect(curved.commands[1] == .cubic(control1: CGPoint(x: 10, y: 20), control2: CGPoint(x: 30, y: -20), to: CGPoint(x: 40, y: 0)))
     }
 
+    @Test func nodesCanBeInsertedAndRemovedAtomically() throws {
+        let path = VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 40, y: 0)), .line(to: CGPoint(x: 40, y: 40))])
+        let inserted = try PathEditing.insertLine(after: 1, to: CGPoint(x: 20, y: 10), in: path)
+        #expect(inserted.commands[2] == .line(to: CGPoint(x: 20, y: 10)))
+        let removed = try PathEditing.removeCommands(at: [1, 2], from: inserted)
+        #expect(removed.commands == [.move(to: .zero), .line(to: CGPoint(x: 40, y: 40))])
+        #expect(throws: PathEditingError.cannotRemoveMove) { try PathEditing.removeCommands(at: [0], from: path) }
+    }
+
     @Test func invalidPathEditsAreRejectedWithoutChangingInput() throws {
         let path = VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 10, y: 0))])
         #expect(throws: PathEditingError.cannotRemoveMove) { try PathEditing.removeCommand(at: 0, from: path) }

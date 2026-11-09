@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 
-public enum PathPointRole: String, Codable, CaseIterable, Sendable {
+public enum PathPointRole: String, Codable, CaseIterable, Sendable, Hashable {
     case destination
     case control1
     case control2
@@ -16,7 +16,7 @@ public enum PathEditingError: Error, Equatable, Sendable {
     case invalidGeometry
 }
 
-public struct PathPointReference: Equatable, Sendable {
+public struct PathPointReference: Equatable, Sendable, Hashable {
     public var commandIndex: Int
     public var role: PathPointRole
 
@@ -70,6 +70,23 @@ public enum PathEditing {
         return result
     }
 
+    public static func insertLine(after commandIndex: Int, to point: CGPoint,
+                                  in path: VectorPath) throws -> VectorPath {
+        guard path.commands.indices.contains(commandIndex), finite(point) else {
+            throw PathEditingError.invalidCommandIndex
+        }
+        switch path.commands[commandIndex] {
+        case .move, .line, .cubic:
+            break
+        case .close:
+            throw PathEditingError.invalidPointRole
+        }
+        var result = path
+        result.commands.insert(.line(to: point), at: commandIndex + 1)
+        try validate(result)
+        return result
+    }
+
     public static func close(_ path: VectorPath) throws -> VectorPath {
         guard !path.commands.isEmpty, hasOpenSubpath(path) else { throw PathEditingError.invalidSequence }
         var result = path
@@ -120,6 +137,19 @@ public enum PathEditing {
         guard index != 0 else { throw PathEditingError.cannotRemoveMove }
         var result = path
         result.commands.remove(at: index)
+        try validate(result)
+        return result
+    }
+
+    public static func removeCommands(at indices: Set<Int>, from path: VectorPath) throws -> VectorPath {
+        guard !indices.isEmpty, indices.allSatisfy(path.commands.indices.contains) else {
+            throw PathEditingError.invalidCommandIndex
+        }
+        guard !indices.contains(0) else { throw PathEditingError.cannotRemoveMove }
+        var result = path
+        for index in indices.sorted(by: >) {
+            result.commands.remove(at: index)
+        }
         try validate(result)
         return result
     }

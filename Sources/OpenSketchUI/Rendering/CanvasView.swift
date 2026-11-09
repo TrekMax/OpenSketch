@@ -39,6 +39,8 @@ struct CanvasHost: NSViewRepresentable {
     private var penSegmentIndex: Int?
     private var pathEditingID: UUID?
     private var pathEditingPoint: PathPointReference?
+    private var pathSelectedPoints: Set<PathPointReference> = []
+    private var pathDragOrigin: CGPoint?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: EditorSession) {
@@ -147,8 +149,16 @@ struct CanvasHost: NSViewRepresentable {
             if let node = session.document.node(id: id),
                let transform = SceneGeometry.worldTransform(id: id, in: session.page),
                let reference = nearestPathPoint(in: node, to: point, transform: transform) {
-                pathEditingPoint = reference
-                session.beginGesture()
+                if event.modifierFlags.contains(.shift) {
+                    if pathSelectedPoints.contains(reference) { pathSelectedPoints.remove(reference) }
+                    else { pathSelectedPoints.insert(reference) }
+                    pathEditingPoint = nil
+                } else {
+                    pathSelectedPoints = [reference]
+                    pathEditingPoint = reference
+                    pathDragOrigin = point
+                    session.beginGesture()
+                }
                 return
             }
             finishPathEditing(commit: true)
@@ -165,7 +175,7 @@ struct CanvasHost: NSViewRepresentable {
                 if event.modifierFlags.contains(.shift) { if session.selection.contains(target) { session.selection.remove(target) } else { session.selection.insert(target) } }
                 else if !session.selection.contains(target) { session.selection = [target] }
                 if event.clickCount == 2, session.document.node(id: hit)?.kind == .path {
-                    beginPathEditing(hit, at: p)
+                    beginPathEditing(hit, at: p, insert: event.modifierFlags.contains(.option))
                     return
                 }
                 if event.clickCount == 2, session.document.node(id: hit)?.kind == .text {
@@ -208,8 +218,21 @@ struct CanvasHost: NSViewRepresentable {
         }
         if let id = pathEditingID, let reference = pathEditingPoint,
            let transform = SceneGeometry.worldTransform(id: id, in: session.page),
-           let local = try? PathEditing.movePoint(reference, to: p.applying(transform.inverted()), in: session.document.node(id: id)?.path ?? VectorPath()) {
-            session.document.updateNode(id: id) { $0.path = local }
+           let origin = pathDragOrigin,
+           let node = session.document.node(id: id) {
+            let inverse = transform.inverted()
+            let localPoint = p.applying(inverse)
+            let localOrigin = origin.applying(inverse)
+            let delta = CGSize(width: localPoint.x - localOrigin.x, height: localPoint.y - localOrigin.y)
+            let references = pathSelectedPoints.isEmpty ? [reference] : Array(pathSelectedPoints)
+            var candidate = node.path
+            do {
+                for selected in references {
+                    guard let point = pathPoint(selected, in: node) else { continue }
+                    candidate = try PathEditing.movePoint(selected, to: CGPoint(x: point.x + delta.width, y: point.y + delta.height), in: candidate)
+                }
+                session.document.updateNode(id: id) { $0.path = candidate }
+            } catch { }
             needsDisplay = true
             return
         }
@@ -247,7 +270,9 @@ struct CanvasHost: NSViewRepresentable {
     }
     override func mouseUp(with event: NSEvent) {
         if pathEditingPoint != nil {
-            finishPathEditing(commit: true)
+            session.commitGesture()
+            pathEditingPoint = nil
+            pathDragOrigin = nil
             needsDisplay = true
             return
         }
@@ -260,6 +285,10 @@ struct CanvasHost: NSViewRepresentable {
             finishText(commit: false)
             finishPrecision(cancel: true)
             if pathEditingID != nil {
+                if event.keyCode == 51 || event.keyCode == 117 {
+                    deleteSelectedPathPoints()
+                    return
+                }
                 finishPathEditing(commit: false)
                 needsDisplay = true
                 return
@@ -281,6 +310,10 @@ struct CanvasHost: NSViewRepresentable {
         }
         if creationTool == .pen && (event.keyCode == 36 || event.keyCode == 76) {
             finishPen()
+            return
+        }
+        if pathEditingID != nil && (event.keyCode == 51 || event.keyCode == 117) {
+            deleteSelectedPathPoints()
             return
         }
         if nudge(with: event) { return }
@@ -312,15 +345,22 @@ struct CanvasHost: NSViewRepresentable {
         }
     }
 
-    private func beginPathEditing(_ id: UUID, at point: CGPoint? = nil) {
+    private func beginPathEditing(_ id: UUID, at point: CGPoint? = nil, insert: Bool = false) {
         session.finishInput?()
         pathEditingID = id
+        pathSelectedPoints = []
+        pathDragOrigin = nil
+        if insert { session.beginGesture() }
         session.selection = [id]
         if let point,
            let node = session.document.node(id: id),
            let transform = SceneGeometry.worldTransform(id: id, in: session.page) {
-            pathEditingPoint = nearestPathPoint(in: node, to: point, transform: transform)
-            if pathEditingPoint != nil { session.beginGesture() }
+            pathEditingPoint = insert ? insertPathPoint(node: node, at: point, transform: transform) : nearestPathPoint(in: node, to: point, transform: transform)
+            if let pathEditingPoint {
+                pathSelectedPoints = [pathEditingPoint]
+                pathDragOrigin = point
+            }
+            if pathEditingPoint != nil, !insert { session.beginGesture() }
         } else {
             pathEditingPoint = nil
         }
@@ -335,7 +375,26 @@ struct CanvasHost: NSViewRepresentable {
         }
         pathEditingID = nil
         pathEditingPoint = nil
+        pathSelectedPoints = []
+        pathDragOrigin = nil
         needsDisplay = true
+    }
+
+    private func deleteSelectedPathPoints() {
+        guard let id = pathEditingID, let node = session.document.node(id: id) else { return }
+        let indices = Set(pathSelectedPoints.filter { $0.role == .destination }.map(\.commandIndex))
+        guard !indices.isEmpty else { return }
+        do {
+            let path = try PathEditing.removeCommands(at: indices, from: node.path)
+            session.document.updateNode(id: id) { $0.path = path }
+            session.commitGesture()
+            pathSelectedPoints = []
+            pathEditingPoint = nil
+            pathDragOrigin = nil
+            needsDisplay = true
+        } catch {
+            session.message = "路径至少需要保留一个节点"
+        }
     }
 
     private func pathPoint(_ reference: PathPointReference, in node: DesignNode) -> CGPoint? {
@@ -370,6 +429,29 @@ struct CanvasHost: NSViewRepresentable {
         }.filter { $0.1 <= 12 / session.zoom }.min { $0.1 < $1.1 }?.0
     }
 
+    private func insertPathPoint(node: DesignNode, at worldPoint: CGPoint,
+                                 transform: CGAffineTransform) -> PathPointReference? {
+        let local = worldPoint.applying(transform.inverted())
+        let commands = node.path.commands
+        guard commands.count >= 2 else { return nil }
+        var best: (index: Int, distance: CGFloat)?
+        for index in commands.indices.dropFirst() {
+            guard case let .line(destination) = commands[index],
+                  let previous = pathPoint(PathPointReference(commandIndex: index - 1), in: node) else { continue }
+            let dx = destination.x - previous.x, dy = destination.y - previous.y
+            let lengthSquared = dx * dx + dy * dy
+            guard lengthSquared > 0 else { continue }
+            let t = max(0, min(1, ((local.x - previous.x) * dx + (local.y - previous.y) * dy) / lengthSquared))
+            let projected = CGPoint(x: previous.x + t * dx, y: previous.y + t * dy)
+            let distance = hypot(local.x - projected.x, local.y - projected.y)
+            if best == nil || distance < best!.distance { best = (index, distance) }
+        }
+        guard let best, best.distance <= 16 / session.zoom else { return nil }
+        guard let path = try? PathEditing.insertLine(after: best.index - 1, to: local, in: node.path) else { return nil }
+        session.document.updateNode(id: pathEditingID ?? node.id) { $0.path = path }
+        return PathPointReference(commandIndex: best.index)
+    }
+
     private func drawPathEditingOverlay(in context: CGContext) {
         guard let id = pathEditingID, let node = session.document.node(id: id),
               let transform = SceneGeometry.worldTransform(id: id, in: session.page) else { return }
@@ -387,7 +469,8 @@ struct CanvasHost: NSViewRepresentable {
                 context.strokePath()
             }
             let isControl = reference.role != .destination
-            context.setFillColor((isControl ? NSColor.white : EditorPalette.accent).cgColor)
+            let selected = pathSelectedPoints.contains(reference)
+            context.setFillColor(selected ? NSColor.systemYellow.cgColor : (isControl ? NSColor.white : EditorPalette.accent).cgColor)
             context.setStrokeColor(EditorPalette.accent.cgColor)
             context.setLineWidth(1 / session.zoom)
             let circle = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
