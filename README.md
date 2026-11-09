@@ -1,6 +1,18 @@
+<img src="./Resources/AppIcon/AppIcon.png"
+    alt="OpenSketch 应用图标"
+    title="OpenSketch"
+    style="padding-right:24px;" align="right" width="24%" />
+
 # OpenSketch
 
 面向 macOS 的开源矢量 UI 设计软件。当前版本为 **0.1.0 原生初始原型**，重点验证编辑模型、文字、持久化、图层组织和基础导出能力。
+
+## 界面预览
+
+<img src="./docs/assets/interface-preview.png"
+    alt="OpenSketch 编辑器界面预览"
+    title="OpenSketch 编辑器界面预览"
+    width="100%" />
 
 ## 构建与运行
 
