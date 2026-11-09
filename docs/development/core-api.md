@@ -21,6 +21,7 @@ struct RGBAColor: Codable, Equatable, Sendable {
 }
 struct NodeStyle: Codable, Equatable, Sendable {
     var fill: RGBAColor?
+    var linearGradient: LinearGradient?
     var stroke: RGBAColor?
     var strokeWidth: Double
     var opacity: Double
@@ -28,6 +29,15 @@ struct NodeStyle: Codable, Equatable, Sendable {
     init(fill: RGBAColor? = nil, stroke: RGBAColor? = nil,
          strokeWidth: Double = 1, opacity: Double = 1, cornerRadius: Double = 0)
     static func `default`(for kind: NodeKind) -> NodeStyle
+}
+struct GradientStop: Codable, Equatable, Sendable {
+    var position: Double
+    var color: RGBAColor
+}
+struct LinearGradient: Codable, Equatable, Sendable {
+    var start: CGPoint
+    var end: CGPoint
+    var stops: [GradientStop]
 }
 enum PathCommand: Codable, Equatable, Sendable {
     case move(to: CGPoint)

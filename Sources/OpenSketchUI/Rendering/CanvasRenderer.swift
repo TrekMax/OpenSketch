@@ -42,7 +42,19 @@ import OpenSketchCore
         }
         if node.kind == .text { TextLayout.draw(node) }
         else {
-            if let fill = node.style.fill { c.setFillColor(fill.nsColor.cgColor); c.addPath(path); c.fillPath() }
+            if let gradient = node.style.linearGradient, gradient.stops.count >= 2 {
+                let colors = gradient.stops.map { $0.color.nsColor.cgColor } as CFArray
+                let locations = gradient.stops.map { CGFloat($0.position) }
+                if let cgGradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) {
+                    let start = CGPoint(x: gradient.start.x * rect.width, y: gradient.start.y * rect.height)
+                    let end = CGPoint(x: gradient.end.x * rect.width, y: gradient.end.y * rect.height)
+                    c.saveGState(); c.addPath(path); c.clip()
+                    c.drawLinearGradient(cgGradient, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+                    c.restoreGState()
+                }
+            } else if let fill = node.style.fill {
+                c.setFillColor(fill.nsColor.cgColor); c.addPath(path); c.fillPath()
+            }
             if let stroke = node.style.stroke, node.style.strokeWidth > 0 { c.setStrokeColor(stroke.nsColor.cgColor); c.setLineWidth(node.style.strokeWidth); c.setLineCap(.butt); c.setLineJoin(.miter); c.setMiterLimit(10); c.addPath(path); c.strokePath() }
         }
         if node.kind == .frame && node.clipsContent { c.clip(to: rect) }

@@ -48,7 +48,7 @@ public enum SceneGeometry {
                                       transform: nil).contains(local)
                 case .path:
                     let path = cgPath(for: node.path)
-                    let fillHit = node.style.fill != nil && path.contains(local)
+                    let fillHit = (node.style.fill != nil || node.style.linearGradient != nil) && path.contains(local)
                     let strokeHit = node.style.stroke != nil && node.style.strokeWidth > 0 &&
                         path.copy(strokingWithWidth: node.style.strokeWidth, lineCap: .butt,
                                   lineJoin: .miter, miterLimit: 10).contains(local)

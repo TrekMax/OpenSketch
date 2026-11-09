@@ -121,6 +121,22 @@ public enum DocumentCodec {
                 try number(value, in: 0...1, field: "color")
             }
         }
+        func gradient(_ gradient: LinearGradient?) throws {
+            guard let gradient else { return }
+            try point(gradient.start); try point(gradient.end)
+            guard !gradient.stops.isEmpty, gradient.stops.count <= 64 else {
+                throw DocumentCodecError.invalidContent("gradientStops")
+            }
+            var previous = -Double.infinity
+            for stop in gradient.stops {
+                try number(stop.position, in: 0...1, field: "gradientPosition")
+                guard stop.position >= previous else {
+                    throw DocumentCodecError.invalidContent("gradientOrder")
+                }
+                previous = stop.position
+                try color(stop.color)
+            }
+        }
         func path(_ path: VectorPath) throws {
             commandCount += path.commands.count
             guard commandCount <= maximumPathCommands else { throw DocumentCodecError.limitExceeded("pathCommands") }
@@ -155,6 +171,7 @@ public enum DocumentCodec {
                 try number(node.rotation, in: -1e9...1e9, field: "rotation")
                 try number(node.fontSize, in: 0.1...1e5, field: "fontSize")
                 try color(node.style.fill); try color(node.style.stroke)
+                try gradient(node.style.linearGradient)
                 try number(node.style.strokeWidth, in: 0...1e5, field: "strokeWidth")
                 try number(node.style.cornerRadius, in: 0...1e7, field: "cornerRadius")
                 try number(node.style.opacity, in: 0...1, field: "opacity")

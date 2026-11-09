@@ -103,7 +103,7 @@ struct ExportOptions: Equatable {
         default: CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         }
         var paths: [CGPath] = []
-        if let fill = node.style.fill, fill.alpha > 0, node.kind != .text || !node.text.isEmpty { paths.append(path) }
+        if ((node.style.fill?.alpha ?? 0) > 0 || node.style.linearGradient != nil), node.kind != .text || !node.text.isEmpty { paths.append(path) }
         if node.kind != .text, let stroke = node.style.stroke, stroke.alpha > 0, node.style.strokeWidth > 0 {
             paths.append(path.copy(strokingWithWidth: node.style.strokeWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10))
         }

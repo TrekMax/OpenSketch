@@ -17,15 +17,40 @@ public struct RGBAColor: Codable, Equatable, Sendable {
     public static let white = RGBAColor(red: 1, green: 1, blue: 1)
 }
 
+public struct GradientStop: Codable, Equatable, Sendable {
+    public var position: Double
+    public var color: RGBAColor
+
+    public init(position: Double, color: RGBAColor) {
+        self.position = position
+        self.color = color
+    }
+}
+
+public struct LinearGradient: Codable, Equatable, Sendable {
+    public var start: CGPoint
+    public var end: CGPoint
+    public var stops: [GradientStop]
+
+    public init(start: CGPoint = CGPoint(x: 0, y: 0.5),
+                end: CGPoint = CGPoint(x: 1, y: 0.5),
+                stops: [GradientStop]) {
+        self.start = start
+        self.end = end
+        self.stops = stops
+    }
+}
+
 public struct NodeStyle: Codable, Equatable, Sendable {
     public var fill: RGBAColor?
+    public var linearGradient: LinearGradient?
     public var stroke: RGBAColor?
     public var strokeWidth: Double
     public var opacity: Double
     public var cornerRadius: Double
     public init(fill: RGBAColor? = nil, stroke: RGBAColor? = nil, strokeWidth: Double = 1,
                 opacity: Double = 1, cornerRadius: Double = 0) {
-        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth
+        self.fill = fill; self.linearGradient = nil; self.stroke = stroke; self.strokeWidth = strokeWidth
         self.opacity = opacity; self.cornerRadius = cornerRadius
     }
     public static func `default`(for kind: NodeKind) -> Self {
