@@ -27,6 +27,7 @@ extension LayerCommand {
         case .boolean(.intersection): "相交形状"
         case .boolean(.subtraction): "减去顶层形状"
         case .boolean(.exclusion): "排除重叠形状"
+        case .booleanRestore: "还原布尔结果"
         }
     }
 
@@ -37,6 +38,7 @@ extension LayerCommand {
         case .order(let order): "layer.order.\(order.rawValue)"
         case .align(let alignment): "layer.align.\(alignment.rawValue)"
         case .distribute(let axis): "layer.distribute.\(axis.rawValue)"
+        case .booleanRestore: "layer.boolean.restore"
         case .boolean(let operation): "layer.boolean.\(operation.rawValue)"
         }
     }
@@ -61,6 +63,7 @@ extension LayerCommand {
         case .boolean(.intersection): "square.on.square"
         case .boolean(.subtraction): "minus.square"
         case .boolean(.exclusion): "square.dashed"
+        case .booleanRestore: "arrow.uturn.backward.square"
         }
     }
 }
@@ -99,6 +102,7 @@ struct LayerActionsView: View {
                     action(.boolean(operation))
                 }
             }
+            action(.booleanRestore, iconOnly: true)
         }
         .font(.system(size: 11)).controlSize(.small)
     }
@@ -143,5 +147,6 @@ struct LayerCommandsMenu: View {
                 action(.boolean(operation))
             }
         }
+        action(.booleanRestore)
     }
 }

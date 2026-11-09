@@ -202,6 +202,8 @@
 "相交形状" = "Intersect Shapes";
 "减去顶层形状" = "Subtract Top Shape";
 "排除重叠形状" = "Exclude Overlap";
+"还原布尔结果" = "Restore Boolean Result";
+"无法还原布尔结果" = "Unable to restore the Boolean result";
 "输入文字" = "Type text";
 "边框" = "Border";
 "退出 OpenSketch" = "Quit OpenSketch";

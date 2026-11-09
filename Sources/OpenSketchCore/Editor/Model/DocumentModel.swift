@@ -55,6 +55,15 @@ public struct VectorPath: Codable, Equatable, Sendable {
     public init(commands: [PathCommand] = []) { self.commands = commands }
 }
 
+public struct BooleanSource: Codable, Equatable, Sendable {
+    public var operation: BooleanOperation
+    public var operands: [DesignNode]
+    public init(operation: BooleanOperation, operands: [DesignNode]) {
+        self.operation = operation
+        self.operands = operands
+    }
+}
+
 public struct DesignNode: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
@@ -72,6 +81,7 @@ public struct DesignNode: Codable, Equatable, Identifiable, Sendable {
     public var textAlignment: ParagraphAlignment
     public var path: VectorPath
     public var children: [DesignNode]
+    public var booleanSource: BooleanSource?
 
     public init(id: UUID = UUID(), name: String = "", kind: NodeKind,
                 frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100), rotation: Double = 0,
@@ -83,6 +93,7 @@ public struct DesignNode: Codable, Equatable, Identifiable, Sendable {
         self.isVisible = isVisible; self.isLocked = isLocked; self.clipsContent = clipsContent
         self.style = style ?? .default(for: kind); self.text = text; self.fontName = fontName
         self.fontSize = fontSize; self.textAlignment = textAlignment; self.path = path; self.children = children
+        self.booleanSource = nil
     }
 }
 

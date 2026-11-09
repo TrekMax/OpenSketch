@@ -21,6 +21,7 @@ public enum BooleanLayerEditing {
         var result = DesignNode(name: "布尔结果", kind: .path, frame: geometry.frame,
                                 style: prepared.nodes[0].style, path: geometry.path)
         result.style.cornerRadius = 0
+        result.booleanSource = BooleanSource(operation: operation, operands: prepared.nodes)
 
         var candidate = document
         guard let pageIndex = candidate.pages.firstIndex(where: { $0.id == pageID }) else {

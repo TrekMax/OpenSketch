@@ -10,6 +10,9 @@ extension EditorSession {
         if case .boolean(let operation) = command {
             return BooleanLayerEditing.canApply(operation, to: document, pageID: pageID, selection: selection)
         }
+        if command == .booleanRestore {
+            return BooleanRestoration.canRestore(document, pageID: pageID, selection: selection)
+        }
         return LayerEditing.canApply(command, to: document, pageID: pageID, selection: selection)
     }
 
@@ -22,6 +25,16 @@ extension EditorSession {
                 self.selection = result.selection
             } catch {
                 setMessage(.format("无法%@：%@", [.key(command.titleKey), .error(error)]))
+            }
+            return
+        }
+        if command == .booleanRestore {
+            do {
+                let result = try BooleanRestoration.restore(document, pageID: pageID, selection: selection)
+                change { $0 = result.document }
+                self.selection = result.selection
+            } catch {
+                setMessage(.key("无法还原布尔结果"))
             }
             return
         }
