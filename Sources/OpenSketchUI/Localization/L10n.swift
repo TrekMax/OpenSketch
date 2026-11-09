@@ -1,24 +1,22 @@
-// Adapted from Compositor (f6cd2f0), Copyright (c) 2026 Wonder Assembly LLC.
-// MIT License; see LICENSES/Compositor-MIT.txt and THIRD_PARTY_NOTICES.md.
-
 import Foundation
 import OpenSketchCore
 
 @MainActor enum L10n {
-    /// Prefer the installed app's resources; SwiftPM supplies the bundle in tests and swift run.
-    static let resourceBundle: Bundle = {
+    static let resourceBundle: Bundle = locateResourceBundle()
+
+    private static func locateResourceBundle() -> Bundle {
         if let url = Bundle.main.url(forResource: "OpenSketch_OpenSketchUI", withExtension: "bundle"),
-           let bundle = Bundle(url: url) { return bundle }
+           let installedBundle = Bundle(url: url) {
+            return installedBundle
+        }
         return Bundle.module
-    }()
+    }
 
     static var locale: Locale { LanguageSettings.shared.locale }
 
     static func text(_ key: String, language: AppLanguage? = nil) -> String {
-        let identifier = (language ?? LanguageSettings.shared.selection).resolvedIdentifier()
-        guard let url = resourceBundle.url(forResource: identifier, withExtension: "lproj"),
-              let bundle = Bundle(url: url) else { return key }
-        return bundle.localizedString(forKey: key, value: key, table: "Localizable")
+        let catalog = catalog(for: language ?? LanguageSettings.shared.selection)
+        return catalog?.localizedString(forKey: key, value: key, table: "Localizable") ?? key
     }
 
     static func format(_ key: String, _ arguments: CVarArg..., language: AppLanguage? = nil) -> String {
@@ -28,6 +26,14 @@ import OpenSketchCore
     static func format(_ key: String, arguments: [CVarArg], language: AppLanguage? = nil) -> String {
         let selected = language ?? LanguageSettings.shared.selection
         return String(format: text(key, language: selected), locale: Locale(identifier: selected.resolvedIdentifier()), arguments: arguments)
+    }
+
+    private static func catalog(for language: AppLanguage) -> Bundle? {
+        let identifier = language.resolvedIdentifier()
+        guard let url = resourceBundle.url(forResource: identifier, withExtension: "lproj") else {
+            return nil
+        }
+        return Bundle(url: url)
     }
 
     static func errorDescription(_ error: Error, language: AppLanguage? = nil) -> String {

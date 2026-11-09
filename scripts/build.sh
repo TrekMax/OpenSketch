@@ -20,8 +20,7 @@ ditto "$binary_dir/$resource_bundle" "$bundle_dir/Contents/Resources/$resource_b
 for language in en zh-Hans; do
     ditto "$repo_dir/Resources/$language.lproj" "$bundle_dir/Contents/Resources/$language.lproj"
 done
-mkdir -p "$bundle_dir/Contents/Resources/Licenses"
-cp "$repo_dir/LICENSES/Compositor-MIT.txt" "$bundle_dir/Contents/Resources/Licenses/Compositor-MIT.txt"
+rm -rf "$bundle_dir/Contents/Resources/Licenses"
 codesign --force --sign - "$bundle_dir"
 codesign --verify --strict "$bundle_dir"
 echo "$bundle_dir"

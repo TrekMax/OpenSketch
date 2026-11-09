@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Sketch-inspired light surfaces and Compositor's neutral dark surfaces.
+/// Editor-owned dynamic surfaces used only by the workspace chrome.
 /// These colors belong to the editor, never to the document or exported artwork.
 enum EditorPalette {
     static let panel = NSColor(name: nil) { appearance in

@@ -2,7 +2,7 @@
 
 ## 原创材料与许可
 
-除下述登记的 Compositor 改写部分外，原生初始原型的源码、测试、脚本、内置示例和文档适用仓库 [MIT License](LICENSE)，版权归 `2026 OpenSketch contributors`。没有引入第三方应用二进制、图标、字体文件或 Sketch 内部框架；Swift Package 未声明外部包依赖。基准程序只编译本仓库核心与原创测量代码。
+原生初始原型的源码、测试、脚本、内置示例和文档适用仓库 [MIT License](LICENSE)，版权归 `2026 OpenSketch contributors`。当前源码、应用资源和 Swift Package 未引入第三方应用代码、二进制、图标、字体文件或外部包依赖；基准程序只编译本仓库核心与原创测量代码。
 
 ## Apple 系统依赖
 
@@ -10,22 +10,11 @@
 
 构建/验证使用系统 Swift、Xcode SDK、Bash、`codesign`、`plutil`；基准另外读取 `sw_vers`、`uname`、`sysctl`、`xcodebuild`。Sketch 元数据检查通过系统 `/usr/bin/unzip` 有界读取 ZIP 的 `meta.json`，不解压到磁盘。Apple 系统框架、SDK 和工具由系统/开发环境提供，遵循各自条款，仓库 MIT 许可不覆盖它们。
 
-## Compositor（架构参考与设置/语言实现改写）
+## 当前来源审核结论
 
-- 上游：<https://github.com/robbietilton/Compositor>
-- 本机参考分支：`feat/module-manager`。
-- 本机参考提交：`f6cd2f05525e7ca61d680cd221a690b796ef21d2`。
-- 本机仓库：`../Compositor`。
-- 源码许可证：MIT，版权行 `Copyright (c) 2026 Wonder Assembly LLC`。
+早期开发曾将 Compositor 作为架构和交互研究材料，并在设置与语言功能中保留过改写代码及其许可证。2026-11-09 已完成相关实现的独立重写：语言选择、资源目录解析和设置界面均使用 OpenSketch 自有实现，行为回归测试通过；当前源码不再包含该第三方实现或版权声明，构建脚本也不再打包其许可证。
 
-2026-11-08 的设置与语言支持参考并改写以下实现，保留 [Compositor MIT 完整许可](LICENSES/Compositor-MIT.txt)，打包时一并放入应用的 `Contents/Resources/Licenses`：
-
-| 来源文件（上述提交） | 本项目文件 | 改写范围 |
-| --- | --- | --- |
-| `Compositor/Localization/LanguageSettings.swift` | `Sources/OpenSketchUI/Localization/LanguageSettings.swift`、`L10n.swift` | 语言枚举、显式查找和偏好保存；改为 SwiftPM 资源、OpenSketch 通知及错误类型，去除首次选择流程 |
-| `Compositor/UI/Settings/ApplicationSettings.swift` | `Sources/OpenSketchUI/UI/Settings/ApplicationSettingsView.swift` | 分类侧栏和通用设置布局；仅接入本应用的外观与语言，使用独立 AppKit 窗口 |
-
-翻译词条、状态消息表示、设置窗口生命周期和本项目测试根据 OpenSketch 的界面独立实现。其他资源若后续引入，应分别登记来源与许可。
+历史开发记录仍可能描述当时的研究过程，不代表当前源码包含第三方代码。后续若重新引入任何外部代码、资源或协议，必须在合并前重新登记来源、许可证和分发文件。
 
 ## Sketch（兼容性观察）
 

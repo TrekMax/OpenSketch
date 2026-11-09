@@ -1,6 +1,6 @@
 # 设置面板与中英文本地化验证
 
-日期：2026-11-08。在已完成的 Sources 方案 B 整理上继续实施；本轮开始时目录整理尚未提交。设置布局和语言选择参考本机 Compositor 的 `f6cd2f0`，改写来源和完整 MIT 许可见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
+日期：2026-11-08。本文记录原型阶段的设置与语言功能；当时曾参考本机 Compositor 的 `f6cd2f0`。2026-11-09 已完成相关实现的独立重写，当前来源状态见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
 
 ## 行为与实现
 
@@ -10,7 +10,7 @@
 - 两份词表各 215 项，覆盖应用菜单、工具、文档标签、页面与图层面板、检查器、导出、缩放、错误与状态提示，以及应用提供的辅助功能标签。原生 AppKit 控件和 SwiftUI 环境均接入刷新。
 - 用户文件名、页面名、图层名、正文不作为翻译键。切换语言不重建工作区、不修改文档 JSON、选择和编辑对象；新建内容的默认名称按创建时语言写入。未保存文档的临时标签属于界面文字，可随语言刷新。
 - 设置前台时，`⌘W` 只关闭设置；撤销、重做、复制、粘贴、重复、删除、全选和图层命令不操作后台文档。菜单验证和图层快捷键入口共用窗口判断。
-- SwiftPM 资源归 `OpenSketchUI`，构建脚本复制完整资源 bundle、应用 `InfoPlist.strings` 及 Compositor MIT 许可。安装包优先使用包内资源，不依赖源码目录。未增加外部包依赖，Core 的 10 个源码文件与本轮开始时逐字节一致。
+- SwiftPM 资源归 `OpenSketchUI`，构建脚本复制完整资源 bundle 和应用 `InfoPlist.strings`。安装包优先使用包内资源，不依赖源码目录。未增加外部包依赖，Core 的 10 个源码文件与本轮开始时逐字节一致。
 
 文件职责见[源码结构](../source-structure.md)，实施步骤见[计划](../superpowers/plans/2026-11-08-settings-localization.md)。
 

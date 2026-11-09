@@ -22,7 +22,9 @@
 | 本地组件库 | M3 基础/M4 扩展 | 文档内组件管理后再支持跨文档引用、版本和更新冲突 |
 | 原型演示 | 本地设计 Beta 后独立评估 | 连接、热点、滚动、覆盖层、转场及预览，不只是一张播放截图 |
 | 开发交付 | 基础数值/资源在 M3，扩展后续 | 尺寸、间距、颜色、字体和资源可获取；布局到代码按支持规则映射 |
-| 插件、脚本与 MCP | 核心稳定后 | 统一命令 API、事务与权限边界；不默认兼容 Sketch 插件运行时 |
+| 插件、脚本与 MCP | M2–M3 | 统一插件清单、格式/导出 API、命令事务、权限和审计；内置 MCP/AI 原生操作；不默认兼容 Sketch 插件运行时 |
+| 设备同步预览 | M3 | 设备端 App/显示后端插件、配对、增量同步、设备尺寸/主题预览和断线恢复 |
+| HTML 交互与素材包 | M3 | 离线 HTML 交互包、资源目录、设计令牌、字体/图片清单和明确的降级报告 |
 | 多人实时协作与云库 | 后续独立项目 | 冲突解决、权限、同步、版本历史、离线恢复与服务运维 |
 
 Sketch 当前文档覆盖 [矢量编辑](https://www.sketch.com/docs/designing/vector-editing/)、[Frames](https://www.sketch.com/docs/designing/frames/)、[Stacks](https://www.sketch.com/docs/designing/stack-layout/)、[Symbols](https://www.sketch.com/docs/symbols-and-styles/symbols/)。官网可能随新版本更新；本机目标版本应固定，最终以对应版本的实际文档和交互回归为准。

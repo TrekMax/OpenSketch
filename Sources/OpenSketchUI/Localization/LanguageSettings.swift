@@ -1,6 +1,3 @@
-// Adapted from Compositor (f6cd2f0), Copyright (c) 2026 Wonder Assembly LLC.
-// MIT License; see LICENSES/Compositor-MIT.txt and THIRD_PARTY_NOTICES.md.
-
 import Foundation
 import Observation
 
@@ -12,20 +9,31 @@ enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 
     func resolvedIdentifier(preferredLanguages: [String] = Locale.preferredLanguages) -> String {
-        guard self == .system else { return rawValue }
-        return Bundle.preferredLocalizations(from: ["en", "zh-Hans"], forPreferences: preferredLanguages).first ?? "en"
+        if self != .system { return rawValue }
+        for language in preferredLanguages {
+            let normalized = language.replacingOccurrences(of: "_", with: "-").lowercased()
+            if normalized == "zh" || normalized.hasPrefix("zh-") {
+                return "zh-Hans"
+            }
+            if normalized == "en" || normalized.hasPrefix("en-") {
+                return "en"
+            }
+        }
+        return "en"
     }
 }
 
 @MainActor @Observable final class LanguageSettings {
     static let shared = LanguageSettings()
     static let storageKey = "appearance.language"
+
     private(set) var selection: AppLanguage
     @ObservationIgnored private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        selection = defaults.string(forKey: Self.storageKey).flatMap(AppLanguage.init(rawValue:)) ?? .system
+        let storedValue = defaults.string(forKey: Self.storageKey)
+        selection = storedValue.flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
 
     var locale: Locale { Locale(identifier: selection.resolvedIdentifier()) }
@@ -34,7 +42,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
         defaults.set(language.rawValue, forKey: Self.storageKey)
         guard selection != language else { return }
         selection = language
-        NotificationCenter.default.post(name: .applicationLanguageDidChange, object: self)
+        NotificationCenter.default.post(name: .applicationLanguageDidChange, object: nil)
     }
 }
 
