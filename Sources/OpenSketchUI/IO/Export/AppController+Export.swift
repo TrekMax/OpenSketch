@@ -22,7 +22,7 @@ extension AppController {
             let prepared = try session.prepareExport(format: format)
             let destination = chooseDestination ?? { prepared in
                 let panel = NSSavePanel()
-                panel.allowedContentTypes = [prepared.options.format == .pdf ? .pdf : .png]
+                panel.allowedContentTypes = [prepared.options.format == .pdf ? .pdf : (prepared.options.format == .svg ? .svg : .png)]
                 panel.nameFieldStringValue = prepared.filename
                 return panel.runModal() == .OK ? panel.url : nil
             }

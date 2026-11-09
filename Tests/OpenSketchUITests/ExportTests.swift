@@ -19,6 +19,25 @@ import OpenSketchCore
         #expect(try #require(pdf.page(at: 1)).getBoxRect(.mediaBox) == CGRect(x: 0, y: 0, width: 20, height: 10))
     }
 
+    @Test func svgExportContainsVectorShapesPathsTextAndGradient() throws {
+        let gradient = LinearGradient(stops: [
+            GradientStop(position: 0, color: red),
+            GradientStop(position: 1, color: blue)
+        ])
+        var rectangle = DesignNode(kind: .rectangle, frame: CGRect(x: 0, y: 0, width: 40, height: 20), style: NodeStyle(fill: red))
+        rectangle.style.linearGradient = gradient
+        let path = DesignNode(kind: .path, frame: CGRect(x: 50, y: 0, width: 30, height: 30), style: NodeStyle(fill: nil, stroke: blue), path: VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 30, y: 30)), .close]))
+        let text = DesignNode(kind: .text, frame: CGRect(x: 0, y: 40, width: 100, height: 30), text: "<OpenSketch>")
+        let data = try SVGExporter.data(page: DesignPage(nodes: [rectangle, path, text]), bounds: CGRect(x: 0, y: 0, width: 100, height: 80))
+        let svg = try #require(String(data: data, encoding: .utf8))
+        #expect(svg.contains("<svg"))
+        #expect(svg.contains("<rect"))
+        #expect(svg.contains("<path"))
+        #expect(svg.contains("<text"))
+        #expect(svg.contains("linearGradient"))
+        #expect(svg.contains("&lt;OpenSketch&gt;"))
+    }
+
     @Test(arguments: [(1.0, 21, 11), (2.0, 41, 21), (3.0, 61, 31)])
     func fractionalCropKeepsTopBottomAndEdgeCoverage(scale: Double, width: Int, height: Int) throws {
         let bounds = CGRect(x: 10.5, y: 20.25, width: 20.25, height: 10.25)

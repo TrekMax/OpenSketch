@@ -11,6 +11,7 @@ import Foundation
         switch options.format {
         case .png: try Exporter.png(page: snapshot.page, bounds: snapshot.bounds, scale: options.scale)
         case .pdf: try Exporter.pdf(page: snapshot.page, bounds: snapshot.bounds)
+        case .svg: try SVGExporter.data(page: snapshot.page, bounds: snapshot.bounds)
         }
     }
 }
@@ -21,10 +22,10 @@ extension EditorSession {
         var options = exportOptions
         if let format { options.format = format }
         options.scope = options.resolvedScope(selection: selection)
-        if options.format == .pdf { options.scale = 1 }
+        if options.format != .png { options.scale = 1 }
         let snapshot = try ExportSnapshot.make(page: page, selection: selection, scope: options.scope)
         let pixels = try Exporter.pixelSize(bounds: snapshot.bounds, scale: options.scale)
-        let dimensions = options.format == .pdf ? snapshot.bounds.size : pixels
+        let dimensions = options.format == .png ? pixels : snapshot.bounds.size
         return PreparedExport(snapshot: snapshot, options: options, dimensions: dimensions)
     }
 }
