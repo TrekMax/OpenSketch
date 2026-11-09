@@ -38,6 +38,14 @@ import OpenSketchCore
         #expect(svg.contains("&lt;OpenSketch&gt;"))
     }
 
+    @Test func limitedSVGImportCreatesEditableNodes() throws {
+        let svg = "<svg width=\"120\" height=\"80\"><rect x=\"4\" y=\"5\" width=\"20\" height=\"10\" fill=\"#ff0000\"/><path d=\"M 30 10 L 50 20 Z\" fill=\"none\" stroke=\"#0000ff\"/><text x=\"5\" y=\"50\" font-size=\"16\">Hello</text></svg>"
+        let document = try SVGImporter.document(data: Data(svg.utf8), name: "imported")
+        #expect(document.pages[0].size == CGSize(width: 120, height: 80))
+        #expect(document.pages[0].nodes.map(\.kind) == [.rectangle, .path, .text])
+        #expect(document.pages[0].nodes[2].text == "Hello")
+    }
+
     @Test(arguments: [(1.0, 21, 11), (2.0, 41, 21), (3.0, 61, 31)])
     func fractionalCropKeepsTopBottomAndEdgeCoverage(scale: Double, width: Int, height: Int) throws {
         let bounds = CGRect(x: 10.5, y: 20.25, width: 20.25, height: 10.25)

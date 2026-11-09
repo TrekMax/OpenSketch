@@ -34,7 +34,7 @@ extension AppController {
         finishDocumentInput()
         let panel = NSOpenPanel()
         panel.prompt = L10n.text("打开")
-        panel.allowedContentTypes = [Self.documentType]
+        panel.allowedContentTypes = [Self.documentType, .svg]
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
@@ -44,6 +44,15 @@ extension AppController {
     @discardableResult func openURL(_ url: URL) -> Bool {
         do {
             finishDocumentInput()
+            if url.pathExtension.lowercased() == "svg" {
+                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                let imported = try SVGImporter.document(data: data, name: url.deletingPathExtension().lastPathComponent)
+                let document = workspace.newDocument()
+                document.session.replace(imported)
+                document.session.needsInitialFit = true
+                window?.makeKeyAndOrderFront(nil)
+                return true
+            }
             try workspace.open(url)
             window?.makeKeyAndOrderFront(nil)
             return true

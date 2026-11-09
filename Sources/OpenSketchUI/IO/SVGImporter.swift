@@ -1,0 +1,98 @@
+import Foundation
+import OpenSketchCore
+
+/// Deliberately limited SVG importer for the first interoperability milestone.
+/// It accepts rect, circle, ellipse, line, path (M/L/C/Z), and text elements.
+@MainActor enum SVGImporter {
+    static func document(data: Data, name: String) throws -> DesignDocument {
+        let parser = Parser()
+        let xml = XMLParser(data: data)
+        xml.delegate = parser
+        guard xml.parse(), !parser.nodes.isEmpty else { throw EditorError.invalid("SVG 文件无法解析或没有受支持的图形。") }
+        let size = CGSize(width: parser.width ?? 1440, height: parser.height ?? 900)
+        return DesignDocument(name: name, pages: [DesignPage(name: "页面 1", size: size, nodes: parser.nodes)])
+    }
+
+    private final class Parser: NSObject, XMLParserDelegate {
+        var nodes: [DesignNode] = []
+        var width: CGFloat?
+        var height: CGFloat?
+        private var text = ""
+
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName qName: String?, attributes: [String : String] = [:]) {
+            if name == "svg" { width = number(attributes["width"]); height = number(attributes["height"]) }
+            guard let node = makeNode(name: name, attributes: attributes) else { return }
+            nodes.append(node)
+            if name == "text" { text = "" }
+        }
+
+        func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
+        func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName qName: String?) {
+            guard name == "text", let index = nodes.indices.last else { return }
+            nodes[index].text = text
+            text = ""
+        }
+
+        private func makeNode(name: String, attributes: [String: String]) -> DesignNode? {
+            let x = number(attributes["x"]) ?? 0, y = number(attributes["y"]) ?? 0
+            let fill = color(attributes["fill"])
+            let stroke = color(attributes["stroke"])
+            let style = NodeStyle(fill: fill, stroke: stroke, strokeWidth: number(attributes["stroke-width"]) ?? 1)
+            switch name {
+            case "rect":
+                return DesignNode(name: "SVG Rectangle", kind: .rectangle, frame: CGRect(x: x, y: y, width: number(attributes["width"]) ?? 0, height: number(attributes["height"]) ?? 0), style: style, text: "")
+            case "circle":
+                let r = number(attributes["r"]) ?? 0
+                return DesignNode(name: "SVG Circle", kind: .ellipse, frame: CGRect(x: (number(attributes["cx"]) ?? x) - r, y: (number(attributes["cy"]) ?? y) - r, width: r * 2, height: r * 2), style: style)
+            case "ellipse":
+                let rx = number(attributes["rx"]) ?? 0, ry = number(attributes["ry"]) ?? 0
+                return DesignNode(name: "SVG Ellipse", kind: .ellipse, frame: CGRect(x: (number(attributes["cx"]) ?? x) - rx, y: (number(attributes["cy"]) ?? y) - ry, width: rx * 2, height: ry * 2), style: style)
+            case "line":
+                let x2 = number(attributes["x2"]) ?? x, y2 = number(attributes["y2"]) ?? y
+                return try? PathEditing.makeNode(name: "SVG Line", points: [CGPoint(x: x, y: y), CGPoint(x: x2, y: y2)], style: style)
+            case "path":
+                guard let path = parsePath(attributes["d"] ?? "") else { return nil }
+                let bounds = pathBounds(path)
+                return DesignNode(name: "SVG Path", kind: .path, frame: bounds, style: style, path: path)
+            case "text":
+                return DesignNode(name: "SVG Text", kind: .text, frame: CGRect(x: x, y: y, width: 300, height: 60), style: style, fontSize: number(attributes["font-size"]) ?? 24)
+            default: return nil
+            }
+        }
+
+        private func parsePath(_ value: String) -> VectorPath? {
+            let tokens = value.replacingOccurrences(of: ",", with: " ").split { $0 == " " || $0 == "\n" }.map(String.init)
+            var index = 0, commands: [PathCommand] = [], command = ""
+            func next() -> CGFloat? { guard index < tokens.count, let value = Double(tokens[index]) else { return nil }; index += 1; return CGFloat(value) }
+            while index < tokens.count {
+                if tokens[index].first?.isLetter == true { command = tokens[index]; index += 1 }
+                switch command.uppercased() {
+                case "M", "L":
+                    guard let x = next(), let y = next() else { return nil }
+                    commands.append(command.uppercased() == "M" ? .move(to: CGPoint(x: x, y: y)) : .line(to: CGPoint(x: x, y: y)))
+                case "C":
+                    guard let x1 = next(), let y1 = next(), let x2 = next(), let y2 = next(), let x = next(), let y = next() else { return nil }
+                    commands.append(.cubic(control1: CGPoint(x: x1, y: y1), control2: CGPoint(x: x2, y: y2), to: CGPoint(x: x, y: y)))
+                case "Z": commands.append(.close); command = ""
+                default: return nil
+                }
+            }
+            return commands.isEmpty ? nil : VectorPath(commands: commands)
+        }
+
+        private func pathBounds(_ path: VectorPath) -> CGRect {
+            let points = path.commands.flatMap { command -> [CGPoint] in
+                switch command { case .move(let p), .line(let p): [p]; case .cubic(let a, let b, let p): [a, b, p]; case .close: [] }
+            }
+            return points.reduce(CGRect.null) { $0.union(CGRect(origin: $1, size: .zero)) }.insetBy(dx: -1, dy: -1)
+        }
+
+        private func number(_ value: String?) -> CGFloat? { value.flatMap { CGFloat(Double($0.filter { $0.isNumber || $0 == "." || $0 == "-" }) ?? 0) } }
+        private func color(_ value: String?) -> RGBAColor? {
+            guard let value, value.hasPrefix("#"), value.count == 7 else { return value == "none" ? nil : .black }
+            let raw = String(value.dropFirst())
+            guard let rgb = Int(raw, radix: 16) else { return nil }
+            return RGBAColor(red: Double((rgb >> 16) & 255) / 255, green: Double((rgb >> 8) & 255) / 255, blue: Double(rgb & 255) / 255)
+        }
+    }
+}
