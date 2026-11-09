@@ -56,6 +56,31 @@ struct PathEditingTests {
         #expect(throws: PathEditingError.cannotRemoveMove) { try PathEditing.removeCommands(at: [0], from: path) }
     }
 
+    @Test func handleModesKeepHandlesFreeAlignedOrMirrored() throws {
+        let path = VectorPath(commands: [
+            .move(to: .zero),
+            .cubic(control1: CGPoint(x: 10, y: 0), control2: CGPoint(x: 30, y: 0), to: CGPoint(x: 40, y: 0)),
+            .cubic(control1: CGPoint(x: 50, y: 0), control2: CGPoint(x: 70, y: 0), to: CGPoint(x: 80, y: 0))
+        ])
+        let free = try PathEditing.moveHandle(PathPointReference(commandIndex: 1, role: .control2), to: CGPoint(x: 30, y: 20), mode: .free, in: path)
+        #expect(PathEditingTestSupport.point(.control1, command: free.commands[2]) == CGPoint(x: 50, y: 0))
+        let mirrored = try PathEditing.moveHandle(PathPointReference(commandIndex: 1, role: .control2), to: CGPoint(x: 30, y: 20), mode: .mirrored, in: path)
+        #expect(PathEditingTestSupport.point(.control1, command: mirrored.commands[2]) == CGPoint(x: 50, y: -20))
+        let closed = try PathEditing.togglingClosed(path)
+        #expect(closed.commands.last == .close)
+        #expect(try PathEditing.togglingClosed(closed) == path)
+    }
+
+    private enum PathEditingTestSupport {
+        static func point(_ role: PathPointRole, command: PathCommand) -> CGPoint? {
+            switch (role, command) {
+            case (.control1, let .cubic(control1, _, _)): return control1
+            case (.control2, let .cubic(_, control2, _)): return control2
+            default: return nil
+            }
+        }
+    }
+
     @Test func invalidPathEditsAreRejectedWithoutChangingInput() throws {
         let path = VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 10, y: 0))])
         #expect(throws: PathEditingError.cannotRemoveMove) { try PathEditing.removeCommand(at: 0, from: path) }

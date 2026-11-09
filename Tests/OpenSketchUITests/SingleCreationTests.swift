@@ -192,6 +192,21 @@ import OpenSketchCore
         #expect(fixture.session.history.canUndo)
     }
 
+    @Test func nodeEditingTogglesClosedAndReversesPath() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 40))
+        try fixture.click(at: CGPoint(x: 140, y: 140))
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 40, y: 40), clickCount: 2))
+        fixture.canvas.keyDown(with: try fixture.key(code: 8, characters: "c"))
+        #expect(fixture.session.page.nodes.first?.path.commands.last == .close)
+        fixture.canvas.keyDown(with: try fixture.key(code: 15, characters: "r"))
+        #expect(fixture.session.page.nodes.first?.path.commands.first == .move(to: CGPoint(x: 100, y: 100)))
+        #expect(fixture.session.history.canUndo)
+    }
+
     @Test(arguments: [false, true])
     func completingOrCancellingDragPreservesNewTool(cancel: Bool) throws {
         let fixture = CanvasFixture(tool: .rectangle)

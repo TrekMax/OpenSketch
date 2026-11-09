@@ -229,7 +229,13 @@ struct CanvasHost: NSViewRepresentable {
             do {
                 for selected in references {
                     guard let point = pathPoint(selected, in: node) else { continue }
-                    candidate = try PathEditing.movePoint(selected, to: CGPoint(x: point.x + delta.width, y: point.y + delta.height), in: candidate)
+                    let destination = CGPoint(x: point.x + delta.width, y: point.y + delta.height)
+                    if selected.role == .destination {
+                        candidate = try PathEditing.movePoint(selected, to: destination, in: candidate)
+                    } else {
+                        candidate = try PathEditing.moveHandle(selected, to: destination,
+                                                               mode: handleMode(for: event.modifierFlags), in: candidate)
+                    }
                 }
                 session.document.updateNode(id: id) { $0.path = candidate }
             } catch { }
@@ -316,6 +322,16 @@ struct CanvasHost: NSViewRepresentable {
             deleteSelectedPathPoints()
             return
         }
+        if pathEditingID != nil, let character = event.charactersIgnoringModifiers?.lowercased() {
+            if character == "c" {
+                togglePathClosed()
+                return
+            }
+            if character == "r" {
+                reversePath()
+                return
+            }
+        }
         if nudge(with: event) { return }
         if precision != nil { session.finishInput?() }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
@@ -378,6 +394,38 @@ struct CanvasHost: NSViewRepresentable {
         pathSelectedPoints = []
         pathDragOrigin = nil
         needsDisplay = true
+    }
+
+    private func handleMode(for flags: NSEvent.ModifierFlags) -> PathHandleMode {
+        if flags.contains(.option) { return .mirrored }
+        if flags.contains(.shift) { return .aligned }
+        return .free
+    }
+
+    private func togglePathClosed() {
+        guard let id = pathEditingID, let node = session.document.node(id: id) else { return }
+        do {
+            session.beginGesture()
+            let path = try PathEditing.togglingClosed(node.path)
+            session.document.updateNode(id: id) { $0.path = path }
+            session.commitGesture()
+            needsDisplay = true
+        } catch {
+            session.message = "无法切换路径闭合状态"
+        }
+    }
+
+    private func reversePath() {
+        guard let id = pathEditingID, let node = session.document.node(id: id) else { return }
+        do {
+            session.beginGesture()
+            let path = try PathEditing.reversed(node.path)
+            session.document.updateNode(id: id) { $0.path = path }
+            session.commitGesture()
+            needsDisplay = true
+        } catch {
+            session.message = "无法反向路径"
+        }
     }
 
     private func deleteSelectedPathPoints() {

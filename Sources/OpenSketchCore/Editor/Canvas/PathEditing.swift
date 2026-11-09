@@ -7,6 +7,12 @@ public enum PathPointRole: String, Codable, CaseIterable, Sendable, Hashable {
     case control2
 }
 
+public enum PathHandleMode: String, Codable, CaseIterable, Sendable {
+    case free
+    case aligned
+    case mirrored
+}
+
 public enum PathEditingError: Error, Equatable, Sendable {
     case emptyPath
     case invalidCommandIndex
@@ -132,6 +138,86 @@ public enum PathEditing {
         return result
     }
 
+    /// Moves a Bézier handle and optionally updates its opposite handle at the
+    /// same anchor. `aligned` preserves the opposite handle length while
+    /// making both handles collinear; `mirrored` reflects the dragged handle.
+    public static func moveHandle(_ reference: PathPointReference, to draggedPoint: CGPoint,
+                                  mode: PathHandleMode, in path: VectorPath) throws -> VectorPath {
+        guard reference.role != .destination else {
+            return try movePoint(reference, to: draggedPoint, in: path)
+        }
+        var result = try movePoint(reference, to: draggedPoint, in: path)
+        guard let opposite = oppositeHandle(of: reference, in: result),
+              let anchor = anchor(for: reference, in: result),
+              let oldOpposite = point(for: opposite, in: path) else { return result }
+        let oppositePoint: CGPoint
+        switch mode {
+        case .free:
+            return result
+        case .mirrored:
+            oppositePoint = CGPoint(x: 2 * anchor.x - draggedPoint.x, y: 2 * anchor.y - draggedPoint.y)
+        case .aligned:
+            let dx = anchor.x - draggedPoint.x, dy = anchor.y - draggedPoint.y
+            let length = hypot(oldOpposite.x - anchor.x, oldOpposite.y - anchor.y)
+            let distance = hypot(dx, dy)
+            guard distance > 0, length.isFinite else { return result }
+            oppositePoint = CGPoint(x: anchor.x + dx / distance * length,
+                                    y: anchor.y + dy / distance * length)
+        }
+        result = try movePoint(opposite, to: oppositePoint, in: result)
+        return result
+    }
+
+    public static func togglingClosed(_ path: VectorPath) throws -> VectorPath {
+        guard !path.commands.isEmpty else { throw PathEditingError.emptyPath }
+        var result = path
+        if case .close = result.commands.last {
+            result.commands.removeLast()
+        } else {
+            guard hasOpenSubpath(result) else { throw PathEditingError.invalidSequence }
+            result.commands.append(.close)
+        }
+        try validate(result)
+        return result
+    }
+
+    /// Reverses a single-subpath path while preserving line and cubic geometry.
+    public static func reversed(_ path: VectorPath) throws -> VectorPath {
+        guard !path.commands.isEmpty else { throw PathEditingError.emptyPath }
+        let closed = path.commands.last.map { if case .close = $0 { true } else { false } } ?? false
+        let body = closed ? Array(path.commands.dropLast()) : path.commands
+        guard let first = body.first, case .move = first else { throw PathEditingError.invalidSequence }
+        var points: [PathCommand] = []
+        var segments: [(start: CGPoint, command: PathCommand, end: CGPoint)] = []
+        var current: CGPoint?
+        for command in body {
+            switch command {
+            case .move(let point): current = point
+            case .line(let point):
+                guard let start = current else { throw PathEditingError.invalidSequence }
+                segments.append((start, command, point)); current = point
+            case .cubic(_, _, let point):
+                guard let start = current else { throw PathEditingError.invalidSequence }
+                segments.append((start, command, point)); current = point
+            case .close: break
+            }
+        }
+        guard let lastEnd = segments.last?.end ?? (firstPoint(in: body)) else { throw PathEditingError.emptyPath }
+        points.append(.move(to: lastEnd))
+        for segment in segments.reversed() {
+            switch segment.command {
+            case .line: points.append(.line(to: segment.start))
+            case .cubic(let control1, let control2, _):
+                points.append(.cubic(control1: control2, control2: control1, to: segment.start))
+            default: break
+            }
+        }
+        if closed { points.append(.close) }
+        let result = VectorPath(commands: points)
+        try validate(result)
+        return result
+    }
+
     public static func removeCommand(at index: Int, from path: VectorPath) throws -> VectorPath {
         guard path.commands.indices.contains(index) else { throw PathEditingError.invalidCommandIndex }
         guard index != 0 else { throw PathEditingError.cannotRemoveMove }
@@ -185,6 +271,49 @@ public enum PathEditing {
             }
         }
         return open
+    }
+
+    private static func firstPoint(in commands: [PathCommand]) -> CGPoint? {
+        for command in commands {
+            if case .move(let point) = command { return point }
+        }
+        return nil
+    }
+
+    private static func point(for reference: PathPointReference, in path: VectorPath) -> CGPoint? {
+        guard path.commands.indices.contains(reference.commandIndex) else { return nil }
+        switch (path.commands[reference.commandIndex], reference.role) {
+        case (.move(let point), .destination), (.line(let point), .destination): return point
+        case let (.cubic(control1, _, _), .control1): return control1
+        case let (.cubic(_, control2, _), .control2): return control2
+        case let (.cubic(_, _, destination), .destination): return destination
+        default: return nil
+        }
+    }
+
+    private static func anchor(for reference: PathPointReference, in path: VectorPath) -> CGPoint? {
+        switch reference.role {
+        case .control1:
+            guard reference.commandIndex > 0 else { return firstPoint(in: Array(path.commands.prefix(1))) }
+            return point(for: PathPointReference(commandIndex: reference.commandIndex - 1), in: path)
+        case .control2:
+            return point(for: PathPointReference(commandIndex: reference.commandIndex), in: path)
+        case .destination: return nil
+        }
+    }
+
+    private static func oppositeHandle(of reference: PathPointReference, in path: VectorPath) -> PathPointReference? {
+        switch reference.role {
+        case .control1:
+            guard reference.commandIndex > 0,
+                  case .cubic = path.commands[reference.commandIndex - 1] else { return nil }
+            return PathPointReference(commandIndex: reference.commandIndex - 1, role: .control2)
+        case .control2:
+            let next = reference.commandIndex + 1
+            guard path.commands.indices.contains(next), case .cubic = path.commands[next] else { return nil }
+            return PathPointReference(commandIndex: next, role: .control1)
+        case .destination: return nil
+        }
     }
 
     private static func bounds(of points: [CGPoint]) -> CGRect {

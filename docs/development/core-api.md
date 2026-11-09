@@ -210,6 +210,9 @@ enum SceneGeometry {
 enum PathPointRole: String, Codable, CaseIterable, Sendable {
     case destination, control1, control2
 }
+enum PathHandleMode: String, Codable, CaseIterable, Sendable {
+    case free, aligned, mirrored
+}
 struct PathPointReference: Equatable, Sendable {
     var commandIndex: Int
     var role: PathPointRole
@@ -228,6 +231,10 @@ enum PathEditing {
     static func close(_ path: VectorPath) throws -> VectorPath
     static func replaceLineWithCubic(at index: Int, control1: CGPoint, control2: CGPoint,
                                      in path: VectorPath) throws -> VectorPath
+    static func moveHandle(_ reference: PathPointReference, to point: CGPoint,
+                           mode: PathHandleMode, in path: VectorPath) throws -> VectorPath
+    static func togglingClosed(_ path: VectorPath) throws -> VectorPath
+    static func reversed(_ path: VectorPath) throws -> VectorPath
     static func movePoint(_ reference: PathPointReference, to point: CGPoint,
                           in path: VectorPath) throws -> VectorPath
     static func removeCommand(at index: Int, from path: VectorPath) throws -> VectorPath

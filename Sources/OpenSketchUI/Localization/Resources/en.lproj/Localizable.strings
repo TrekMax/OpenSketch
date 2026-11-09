@@ -195,6 +195,8 @@
 "无法创建路径" = "Unable to create path";
 "路径至少需要两个节点" = "A path needs at least two nodes";
 "拖动节点编辑路径 · Escape 退出节点编辑" = "Drag nodes to edit the path · Escape to leave node editing";
+"无法切换路径闭合状态" = "Unable to toggle the path's closed state";
+"无法反向路径" = "Unable to reverse the path";
 "输入文字" = "Type text";
 "边框" = "Border";
 "退出 OpenSketch" = "Quit OpenSketch";
