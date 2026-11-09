@@ -46,6 +46,14 @@ import OpenSketchCore
         #expect(document.pages[0].nodes[2].text == "Hello")
     }
 
+    @Test func svgImportUsesViewBoxAndBasicTransforms() throws {
+        let svg = "<svg viewBox=\"0 0 200 100\"><rect x=\"10\" y=\"20\" width=\"20\" height=\"10\" transform=\"translate(5 7) rotate(10)\"/></svg>"
+        let document = try SVGImporter.document(data: Data(svg.utf8), name: "transformed")
+        #expect(document.pages[0].size == CGSize(width: 200, height: 100))
+        #expect(document.pages[0].nodes.first?.frame.origin == CGPoint(x: 15, y: 27))
+        #expect(document.pages[0].nodes.first?.rotation == 10)
+    }
+
     @Test(arguments: [(1.0, 21, 11), (2.0, 41, 21), (3.0, 61, 31)])
     func fractionalCropKeepsTopBottomAndEdgeCoverage(scale: Double, width: Int, height: Int) throws {
         let bounds = CGRect(x: 10.5, y: 20.25, width: 20.25, height: 10.25)

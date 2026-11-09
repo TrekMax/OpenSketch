@@ -17,11 +17,18 @@ import OpenSketchCore
         var nodes: [DesignNode] = []
         var width: CGFloat?
         var height: CGFloat?
+        var viewBox: CGRect?
         private var text = ""
 
         func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName qName: String?, attributes: [String : String] = [:]) {
-            if name == "svg" { width = number(attributes["width"]); height = number(attributes["height"]) }
-            guard let node = makeNode(name: name, attributes: attributes) else { return }
+            if name == "svg" {
+                width = number(attributes["width"]); height = number(attributes["height"])
+                viewBox = rectangle(attributes["viewBox"])
+                if width == nil { width = viewBox?.width }
+                if height == nil { height = viewBox?.height }
+            }
+            guard var node = makeNode(name: name, attributes: attributes) else { return }
+            apply(transform: attributes["transform"], to: &node)
             nodes.append(node)
             if name == "text" { text = "" }
         }
@@ -60,6 +67,24 @@ import OpenSketchCore
             }
         }
 
+        private func apply(transform value: String?, to node: inout DesignNode) {
+            guard let value else { return }
+            let pattern = #"(translate|rotate)\s*\(([^)]*)\)"#
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+            for match in regex.matches(in: value, range: NSRange(value.startIndex..., in: value)).reversed() {
+                guard let typeRange = Range(match.range(at: 1), in: value),
+                      let valuesRange = Range(match.range(at: 2), in: value) else { continue }
+                let type = String(value[typeRange])
+                let values = String(value[valuesRange]).split { $0 == "," || $0 == " " }.compactMap { Double($0) }
+                if type == "translate", let x = values.first {
+                    node.frame.origin.x += x
+                    if values.count > 1 { node.frame.origin.y += values[1] }
+                } else if type == "rotate", let angle = values.first {
+                    node.rotation += angle
+                }
+            }
+        }
+
         private func parsePath(_ value: String) -> VectorPath? {
             let tokens = value.replacingOccurrences(of: ",", with: " ").split { $0 == " " || $0 == "\n" }.map(String.init)
             var index = 0, commands: [PathCommand] = [], command = ""
@@ -88,6 +113,12 @@ import OpenSketchCore
         }
 
         private func number(_ value: String?) -> CGFloat? { value.flatMap { CGFloat(Double($0.filter { $0.isNumber || $0 == "." || $0 == "-" }) ?? 0) } }
+        private func rectangle(_ value: String?) -> CGRect? {
+            guard let value else { return nil }
+            let values = value.split { $0 == "," || $0 == " " }.compactMap { Double($0) }
+            guard values.count == 4 else { return nil }
+            return CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+        }
         private func color(_ value: String?) -> RGBAColor? {
             guard let value, value.hasPrefix("#"), value.count == 7 else { return value == "none" ? nil : .black }
             let raw = String(value.dropFirst())
