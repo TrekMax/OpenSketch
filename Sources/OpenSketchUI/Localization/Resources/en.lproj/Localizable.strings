@@ -197,6 +197,11 @@
 "拖动节点编辑路径 · Escape 退出节点编辑" = "Drag nodes to edit the path · Escape to leave node editing";
 "无法切换路径闭合状态" = "Unable to toggle the path's closed state";
 "无法反向路径" = "Unable to reverse the path";
+"布尔运算" = "Boolean Operations";
+"合并形状" = "Union Shapes";
+"相交形状" = "Intersect Shapes";
+"减去顶层形状" = "Subtract Top Shape";
+"排除重叠形状" = "Exclude Overlap";
 "输入文字" = "Type text";
 "边框" = "Border";
 "退出 OpenSketch" = "Quit OpenSketch";

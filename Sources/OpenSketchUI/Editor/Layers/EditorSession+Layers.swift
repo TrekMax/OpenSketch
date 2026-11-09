@@ -7,11 +7,24 @@ extension EditorSession {
     }
 
     func canPerform(_ command: LayerCommand, selection: Set<UUID>) -> Bool {
-        LayerEditing.canApply(command, to: document, pageID: pageID, selection: selection)
+        if case .boolean(let operation) = command {
+            return BooleanLayerEditing.canApply(operation, to: document, pageID: pageID, selection: selection)
+        }
+        return LayerEditing.canApply(command, to: document, pageID: pageID, selection: selection)
     }
 
     func perform(_ command: LayerCommand) {
         finishInput?()
+        if case .boolean(let operation) = command {
+            do {
+                let result = try BooleanLayerEditing.apply(operation, to: document, pageID: pageID, selection: selection)
+                change { $0 = result.document }
+                self.selection = result.selection
+            } catch {
+                setMessage(.format("无法%@：%@", [.key(command.titleKey), .error(error)]))
+            }
+            return
+        }
         do {
             let result = try LayerEditing.apply(command, to: document, pageID: pageID, selection: selection)
             var updated = result.document

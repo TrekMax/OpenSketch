@@ -241,6 +241,18 @@ enum PathEditing {
     static func removeCommands(at indices: Set<Int>, from path: VectorPath) throws -> VectorPath
     static func validate(_ path: VectorPath) throws
 }
+enum BooleanOperation: String, Codable, CaseIterable, Sendable {
+    case union, intersection, subtraction, exclusion
+}
+enum BooleanEditing {
+    static func combine(_ paths: [VectorPath], operation: BooleanOperation) throws -> VectorPath
+}
+enum BooleanLayerEditing {
+    static func canApply(_ operation: BooleanOperation, to document: DesignDocument,
+                         pageID: UUID, selection: Set<UUID>) -> Bool
+    static func apply(_ operation: BooleanOperation, to document: DesignDocument,
+                      pageID: UUID, selection: Set<UUID>) throws -> LayerEditResult
+}
 ```
 
 frame.origin 是父坐标中的位置，frame.size 是本地宽高。本地原点为 (0,0)。rotation 是角度制，向下为正的画布中正角度顺时针。变换是 `T(frame.origin) × T(center) × R(rotation) × T(-center)`；CoreGraphics 合成时子变换使用 `local.concatenating(parentWorld)`。绘制、导出、命中需使用这一规则；视图缩放和平移在世界坐标外单独处理。

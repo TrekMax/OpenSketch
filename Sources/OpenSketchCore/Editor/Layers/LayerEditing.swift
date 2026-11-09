@@ -18,6 +18,7 @@ public enum LayerCommand: Equatable, Sendable {
     case order(LayerOrder)
     case align(LayerAlignment)
     case distribute(LayerAxis)
+    case boolean(BooleanOperation)
 }
 
 public struct LayerEditResult: Equatable, Sendable {
@@ -133,6 +134,7 @@ public enum LayerEditing {
             guard roots.allSatisfy({ $0.node.style.fill == nil && $0.node.style.stroke == nil &&
                 $0.node.style.opacity == 1 }) else { throw LayerEditError.styledGroup }
         case .order: break
+        case .boolean: break
         }
         var groupBounds: CGRect?
         if command == .group {
@@ -258,6 +260,8 @@ public enum LayerEditing {
                 }
                 cursor += (axis == .horizontal ? item.bounds.width : item.bounds.height) + gap
             }
+        case .boolean:
+            throw LayerEditError.invalidSelection
         }
         if updateDocument && !translatedFrames.isEmpty {
             func update(_ nodes: inout [DesignNode]) {

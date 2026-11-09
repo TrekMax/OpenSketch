@@ -23,6 +23,10 @@ extension LayerCommand {
         case .align(.bottom): "底对齐"
         case .distribute(.horizontal): "水平等距分布"
         case .distribute(.vertical): "垂直等距分布"
+        case .boolean(.union): "合并形状"
+        case .boolean(.intersection): "相交形状"
+        case .boolean(.subtraction): "减去顶层形状"
+        case .boolean(.exclusion): "排除重叠形状"
         }
     }
 
@@ -33,6 +37,7 @@ extension LayerCommand {
         case .order(let order): "layer.order.\(order.rawValue)"
         case .align(let alignment): "layer.align.\(alignment.rawValue)"
         case .distribute(let axis): "layer.distribute.\(axis.rawValue)"
+        case .boolean(let operation): "layer.boolean.\(operation.rawValue)"
         }
     }
 
@@ -52,6 +57,10 @@ extension LayerCommand {
         case .align(.bottom): "align.vertical.bottom"
         case .distribute(.horizontal): "distribute.horizontal"
         case .distribute(.vertical): "distribute.vertical"
+        case .boolean(.union): "square.2.layers.3d"
+        case .boolean(.intersection): "square.on.square"
+        case .boolean(.subtraction): "minus.square"
+        case .boolean(.exclusion): "square.dashed"
         }
     }
 }
@@ -85,6 +94,11 @@ struct LayerActionsView: View {
                     action($0, iconOnly: true)
                 }
             }.buttonStyle(.plain).foregroundStyle(.secondary)
+            Menu(L10n.text("布尔运算")) {
+                ForEach(BooleanOperation.allCases, id: \.rawValue) { operation in
+                    action(.boolean(operation))
+                }
+            }
         }
         .font(.system(size: 11)).controlSize(.small)
     }
@@ -124,5 +138,10 @@ struct LayerCommandsMenu: View {
         ForEach(LayerCommand.ordering, id: \.identifier) { action($0) }
         Menu(L10n.text("对齐")) { ForEach(LayerCommand.alignment, id: \.identifier) { action($0) } }
         Menu(L10n.text("等距分布")) { ForEach(LayerCommand.distribution, id: \.identifier) { action($0) } }
+        Menu(L10n.text("布尔运算")) {
+            ForEach(BooleanOperation.allCases, id: \.rawValue) { operation in
+                action(.boolean(operation))
+            }
+        }
     }
 }
