@@ -224,6 +224,8 @@ enum PathEditing {
                          style: NodeStyle? = nil) throws -> DesignNode
     static func appendLine(to point: CGPoint, in path: VectorPath) throws -> VectorPath
     static func close(_ path: VectorPath) throws -> VectorPath
+    static func replaceLineWithCubic(at index: Int, control1: CGPoint, control2: CGPoint,
+                                     in path: VectorPath) throws -> VectorPath
     static func movePoint(_ reference: PathPointReference, to point: CGPoint,
                           in path: VectorPath) throws -> VectorPath
     static func removeCommand(at index: Int, from path: VectorPath) throws -> VectorPath

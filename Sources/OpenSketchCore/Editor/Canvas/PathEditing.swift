@@ -77,6 +77,20 @@ public enum PathEditing {
         return result
     }
 
+    public static func replaceLineWithCubic(at index: Int, control1: CGPoint, control2: CGPoint,
+                                            in path: VectorPath) throws -> VectorPath {
+        guard path.commands.indices.contains(index), finite(control1), finite(control2) else {
+            throw PathEditingError.invalidCommandIndex
+        }
+        guard case .line(let destination) = path.commands[index], index > 0 else {
+            throw PathEditingError.invalidPointRole
+        }
+        var result = path
+        result.commands[index] = .cubic(control1: control1, control2: control2, to: destination)
+        try validate(result)
+        return result
+    }
+
     public static func movePoint(_ reference: PathPointReference, to point: CGPoint,
                                  in path: VectorPath) throws -> VectorPath {
         guard finite(point), path.commands.indices.contains(reference.commandIndex) else {

@@ -36,6 +36,17 @@ struct PathEditingTests {
         #expect(movedDestination.commands[1] == .cubic(control1: CGPoint(x: 12, y: 2), control2: CGPoint(x: 20, y: 10), to: CGPoint(x: 40, y: 0)))
     }
 
+    @Test func lineCanBecomeCubicWithoutChangingItsDestination() throws {
+        let path = VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 40, y: 0))])
+        let curved = try PathEditing.replaceLineWithCubic(
+            at: 1,
+            control1: CGPoint(x: 10, y: 20),
+            control2: CGPoint(x: 30, y: -20),
+            in: path
+        )
+        #expect(curved.commands[1] == .cubic(control1: CGPoint(x: 10, y: 20), control2: CGPoint(x: 30, y: -20), to: CGPoint(x: 40, y: 0)))
+    }
+
     @Test func invalidPathEditsAreRejectedWithoutChangingInput() throws {
         let path = VectorPath(commands: [.move(to: .zero), .line(to: CGPoint(x: 10, y: 0))])
         #expect(throws: PathEditingError.cannotRemoveMove) { try PathEditing.removeCommand(at: 0, from: path) }

@@ -35,6 +35,8 @@ struct CanvasHost: NSViewRepresentable {
     var guides: [SnapGuide] = []
     var containerDrag: ContainerDrag?
     private var penPoints: [CGPoint] = []
+    private var penDragStart: CGPoint?
+    private var penSegmentIndex: Int?
     private var pathEditingID: UUID?
     private var pathEditingPoint: PathPointReference?
     override var isFlipped: Bool { true }
@@ -132,6 +134,10 @@ struct CanvasHost: NSViewRepresentable {
         if session.tool == .pen {
             if creationTool == .pen {
                 appendPenPoint(point, close: event.clickCount > 1)
+                if creationTool == .pen {
+                    penDragStart = point
+                    penSegmentIndex = penPoints.count > 1 ? penPoints.count - 1 : nil
+                }
             } else {
                 beginPen(at: point)
             }
@@ -182,6 +188,24 @@ struct CanvasHost: NSViewRepresentable {
     }
     override func mouseDragged(with event: NSEvent) {
         let p = world(event)
+        if creationTool == .pen, let id = creation, let start = penDragStart,
+           let segment = penSegmentIndex, let node = session.document.node(id: id),
+           let transform = SceneGeometry.worldTransform(id: id, in: session.page),
+           let end = pathPoint(PathPointReference(commandIndex: segment), in: node) {
+            let inverse = transform.inverted()
+            let localStart = start.applying(inverse)
+            let localPoint = p.applying(inverse)
+            let dx = localPoint.x - end.x
+            let dy = localPoint.y - end.y
+            let control1 = localStart
+            let control2 = CGPoint(x: end.x - dx, y: end.y - dy)
+            if let path = try? PathEditing.replaceLineWithCubic(at: segment, control1: control1,
+                                                                  control2: control2, in: node.path) {
+                session.document.updateNode(id: id) { $0.path = path }
+                needsDisplay = true
+            }
+            return
+        }
         if let id = pathEditingID, let reference = pathEditingPoint,
            let transform = SceneGeometry.worldTransform(id: id, in: session.page),
            let local = try? PathEditing.movePoint(reference, to: p.applying(transform.inverted()), in: session.document.node(id: id)?.path ?? VectorPath()) {
@@ -214,6 +238,7 @@ struct CanvasHost: NSViewRepresentable {
         guides = []
         clearContainerDrag()
         start = nil; creation = nil; creationTool = nil; resizing = nil; penPoints = []
+        penDragStart = nil; penSegmentIndex = nil
         if beginTextEditing, let id, session.document.node(id: id)?.kind == .text {
             beginText(id)
             if textID == id { textCreationTool = tool; return }
@@ -245,6 +270,7 @@ struct CanvasHost: NSViewRepresentable {
                 session.selection = []
                 finishCreation(tool: tool)
                 creation = nil; creationTool = nil; penPoints = []
+                penDragStart = nil; penSegmentIndex = nil
                 session.message = "路径至少需要两个节点"
             } else if start != nil {
                 session.cancelGesture(); start = nil; creation = nil; resizing = nil
@@ -273,7 +299,7 @@ struct CanvasHost: NSViewRepresentable {
             let style = NodeStyle(fill: nil, stroke: RGBAColor(red: 0.27, green: 0.48, blue: 0.95), strokeWidth: 2)
             let node = try PathEditing.makeNode(name: session.tool.title, points: penPoints, style: style)
             guard session.create(node) else {
-                session.cancelGesture(); penPoints = []; return
+                session.cancelGesture(); penPoints = []; penDragStart = nil; penSegmentIndex = nil; return
             }
             creation = node.id
             creationTool = .pen
@@ -352,6 +378,14 @@ struct CanvasHost: NSViewRepresentable {
         let radius = 5 / session.zoom
         for reference in pathPointReferences(in: node) {
             guard let point = pathPoint(reference, in: node) else { continue }
+            if reference.role != .destination,
+               let destination = pathPoint(PathPointReference(commandIndex: reference.commandIndex), in: node) {
+                context.setStrokeColor(EditorPalette.accent.withAlphaComponent(0.55).cgColor)
+                context.setLineWidth(1 / session.zoom)
+                context.move(to: destination)
+                context.addLine(to: point)
+                context.strokePath()
+            }
             let isControl = reference.role != .destination
             context.setFillColor((isControl ? NSColor.white : EditorPalette.accent).cgColor)
             context.setStrokeColor(EditorPalette.accent.cgColor)

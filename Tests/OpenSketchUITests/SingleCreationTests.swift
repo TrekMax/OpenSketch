@@ -107,6 +107,24 @@ import OpenSketchCore
         #expect(fixture.session.page.nodes.isEmpty)
     }
 
+    @Test func draggingPenPointCreatesCubicSegment() throws {
+        let fixture = CanvasFixture(tool: .pen)
+        defer { fixture.window.close() }
+        try fixture.click(at: CGPoint(x: 40, y: 40))
+        fixture.canvas.mouseDown(with: try fixture.mouse(.leftMouseDown, at: CGPoint(x: 140, y: 40)))
+        fixture.canvas.mouseDragged(with: try fixture.mouse(.leftMouseDragged, at: CGPoint(x: 140, y: 100)))
+        fixture.canvas.mouseUp(with: try fixture.mouse(.leftMouseUp, at: CGPoint(x: 140, y: 100)))
+        fixture.canvas.keyDown(with: try fixture.key(code: 36, characters: "\r"))
+        let node = try #require(fixture.session.page.nodes.first)
+        guard case .cubic(let control1, let control2, let destination) = node.path.commands.last else {
+            Issue.record("Expected a cubic segment")
+            return
+        }
+        #expect(control1 == CGPoint(x: 100, y: 0))
+        #expect(control2 == CGPoint(x: 100, y: -60))
+        #expect(destination == CGPoint(x: 100, y: 0))
+    }
+
     @Test func penDoubleClickClosesPathAndEscapeCancelsDraft() throws {
         let fixture = CanvasFixture(tool: .pen)
         defer { fixture.window.close() }
