@@ -127,8 +127,8 @@ struct CanvasHost: NSViewRepresentable {
         }
         drawContainerDrag(in: c)
         drawPrecision(in: c)
-        c.restoreGState()
         drawPathEditingOverlay(in: c)
+        c.restoreGState()
         if session.page.nodes.isEmpty { (L10n.text("开始设计\n选择上方工具，然后在画布中拖动") as NSString).draw(in: CGRect(x: 40, y: 35, width: 340, height: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.secondaryLabelColor]) }
     }
     override func mouseDown(with event: NSEvent) {
@@ -237,7 +237,7 @@ struct CanvasHost: NSViewRepresentable {
                                                                mode: handleMode(for: event.modifierFlags), in: candidate)
                     }
                 }
-                session.document.updateNode(id: id) { $0.path = candidate }
+                applyEditedPath(candidate, to: id)
             } catch { }
             needsDisplay = true
             return
@@ -336,7 +336,13 @@ struct CanvasHost: NSViewRepresentable {
         if precision != nil { session.finishInput?() }
         if event.keyCode == 51 || event.keyCode == 117 { session.deleteSelection(); return }
         let tools: [String: EditorTool] = ["v": .select, "f": .frame, "r": .rectangle, "o": .ellipse, "p": .pen, "t": .text]
-        if let tool = tools[event.charactersIgnoringModifiers ?? ""] { session.tool = tool } else { super.keyDown(with: event) }
+        if let tool = tools[event.charactersIgnoringModifiers ?? ""] {
+            if tool == .pen, let selected = session.selected, selected.kind == .path {
+                beginPathEditing(selected.id)
+            } else {
+                session.tool = tool
+            }
+        } else { super.keyDown(with: event) }
     }
 
     private func beginPen(at point: CGPoint) {
@@ -396,6 +402,18 @@ struct CanvasHost: NSViewRepresentable {
         needsDisplay = true
     }
 
+    private func applyEditedPath(_ path: VectorPath, to id: UUID) {
+        guard let geometry = try? PathEditing.normalized(path) else { return }
+        session.document.updateNode(id: id) {
+            let oldFrame = $0.frame
+            $0.frame = CGRect(x: oldFrame.minX + geometry.frame.minX,
+                              y: oldFrame.minY + geometry.frame.minY,
+                              width: geometry.frame.width,
+                              height: geometry.frame.height)
+            $0.path = geometry.path
+        }
+    }
+
     private func handleMode(for flags: NSEvent.ModifierFlags) -> PathHandleMode {
         if flags.contains(.option) { return .mirrored }
         if flags.contains(.shift) { return .aligned }
@@ -407,7 +425,7 @@ struct CanvasHost: NSViewRepresentable {
         do {
             session.beginGesture()
             let path = try PathEditing.togglingClosed(node.path)
-            session.document.updateNode(id: id) { $0.path = path }
+            applyEditedPath(path, to: id)
             session.commitGesture()
             needsDisplay = true
         } catch {
@@ -420,7 +438,7 @@ struct CanvasHost: NSViewRepresentable {
         do {
             session.beginGesture()
             let path = try PathEditing.reversed(node.path)
-            session.document.updateNode(id: id) { $0.path = path }
+            applyEditedPath(path, to: id)
             session.commitGesture()
             needsDisplay = true
         } catch {
@@ -496,7 +514,7 @@ struct CanvasHost: NSViewRepresentable {
         }
         guard let best, best.distance <= 16 / session.zoom else { return nil }
         guard let path = try? PathEditing.insertLine(after: best.index - 1, to: local, in: node.path) else { return nil }
-        session.document.updateNode(id: pathEditingID ?? node.id) { $0.path = path }
+        applyEditedPath(path, to: pathEditingID ?? node.id)
         return PathPointReference(commandIndex: best.index)
     }
 

@@ -46,6 +46,28 @@ public struct PathGeometry: Equatable, Sendable {
 /// and the future node editor. Coordinates in the returned path are local to
 /// the returned frame.
 public enum PathEditing {
+    public static func normalized(_ path: VectorPath) throws -> PathGeometry {
+        guard !path.commands.isEmpty else { throw PathEditingError.emptyPath }
+        try validate(path)
+        let points = path.commands.flatMap { command -> [CGPoint] in
+            switch command {
+            case .move(let point), .line(let point): return [point]
+            case .cubic(let control1, let control2, let point): return [control1, control2, point]
+            case .close: return []
+            }
+        }
+        guard let first = points.first, points.allSatisfy(finite) else { throw PathEditingError.invalidGeometry }
+        var minX = first.x, maxX = first.x, minY = first.y, maxY = first.y
+        for point in points.dropFirst() {
+            minX = min(minX, point.x); maxX = max(maxX, point.x)
+            minY = min(minY, point.y); maxY = max(maxY, point.y)
+        }
+        let origin = CGPoint(x: minX, y: minY)
+        let commands = path.commands.map { map($0) { CGPoint(x: $0.x - origin.x, y: $0.y - origin.y) } }
+        return PathGeometry(frame: CGRect(x: minX, y: minY, width: max(1, maxX - minX), height: max(1, maxY - minY)),
+                            path: VectorPath(commands: commands))
+    }
+
     public static func geometry(points: [CGPoint], closed: Bool = false) throws -> PathGeometry {
         guard !points.isEmpty, points.allSatisfy(finite) else { throw PathEditingError.invalidGeometry }
         var commands = [PathCommand.move(to: points[0])]

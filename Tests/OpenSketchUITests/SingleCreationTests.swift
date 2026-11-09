@@ -153,7 +153,8 @@ import OpenSketchCore
         fixture.canvas.mouseDragged(with: try fixture.mouse(.leftMouseDragged, at: CGPoint(x: 60, y: 60)))
         fixture.canvas.mouseUp(with: try fixture.mouse(.leftMouseUp, at: CGPoint(x: 60, y: 60)))
         let node = try #require(fixture.session.page.nodes.first)
-        #expect(node.path.commands.first == .move(to: CGPoint(x: 20, y: 20)))
+        #expect(node.frame.origin == CGPoint(x: 60, y: 40))
+        #expect(node.path.commands.first == .move(to: CGPoint(x: 0, y: 20)))
         #expect(fixture.session.history.canUndo)
     }
 
