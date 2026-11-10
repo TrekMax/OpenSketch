@@ -7,14 +7,42 @@ struct PluginManagerView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(model.items, selection: $selectedID) { item in
-                HStack {
-                    Label(item.manifest.name, systemImage: item.manifest.kind == .exporter ? "arrow.up.doc" : "puzzlepiece.extension")
-                    Spacer()
-                    Circle().fill(item.enabled ? .green : .gray).frame(width: 7, height: 7)
+            VStack(spacing: 0) {
+                List(selection: $selectedID) {
+                    Section {
+                        ForEach(model.builtInItems) { item in itemRow(item) }
+                    } header: {
+                        Text(L10n.text("内建插件"))
+                    }
+
+                    Divider().padding(.vertical, 4)
+
+                    Section {
+                        if model.externalItems.isEmpty {
+                            Text(L10n.text("暂无外部扩展插件"))
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 6)
+                                .accessibilityIdentifier("plugin.external.empty")
+                        } else {
+                            ForEach(model.externalItems) { item in itemRow(item) }
+                        }
+                    } header: {
+                        Text(L10n.text("外部扩展插件"))
+                    }
                 }
-                .tag(item.id)
-                .accessibilityIdentifier("plugin.\(item.id)")
+                .listStyle(.sidebar)
+
+                Divider()
+                Button {
+                    model.chooseAndInstall()
+                } label: {
+                    Label(L10n.text("导入插件…"), systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .accessibilityIdentifier("plugin.import")
             }
             .navigationTitle(L10n.text("插件"))
         } detail: {
@@ -34,6 +62,17 @@ struct PluginManagerView: View {
             }
         }
         .frame(minWidth: 700, minHeight: 440)
+    }
+
+    @ViewBuilder
+    private func itemRow(_ item: PluginManagerModel.Item) -> some View {
+        HStack {
+            Label(item.manifest.name, systemImage: item.manifest.kind == .exporter ? "arrow.up.doc" : "puzzlepiece.extension")
+            Spacer()
+            Circle().fill(item.enabled ? .green : .gray).frame(width: 7, height: 7)
+        }
+        .tag(item.id)
+        .accessibilityIdentifier("plugin.\(item.id)")
     }
 }
 

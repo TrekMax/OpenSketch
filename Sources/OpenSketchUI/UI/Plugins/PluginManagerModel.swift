@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Observation
 import OpenSketchCore
+import UniformTypeIdentifiers
 
 @MainActor @Observable final class PluginManagerModel {
     struct Item: Identifiable {
@@ -16,6 +17,9 @@ import OpenSketchCore
         Item(id: $0.id, manifest: $0, packageURL: nil, enabled: true, error: nil)
     }
     var lastError: String?
+
+    var builtInItems: [Item] { items.filter { $0.packageURL == nil } }
+    var externalItems: [Item] { items.filter { $0.packageURL != nil } }
 
     func install(url: URL) {
         do {
@@ -32,7 +36,7 @@ import OpenSketchCore
 
     func chooseAndInstall() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.package]
+        panel.allowedContentTypes = [UTType(filenameExtension: PluginPackageManifest.packageExtension, conformingTo: .package) ?? .package]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { install(url: url) }
     }

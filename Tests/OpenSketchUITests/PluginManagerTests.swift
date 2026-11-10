@@ -24,4 +24,11 @@ import Testing
         let item = try #require(appMenu.items.first(where: { $0.action == #selector(AppController.showPluginManager(_:)) }))
         #expect(item.title == L10n.text("插件管理器"))
     }
+
+    @Test func pluginManagerSeparatesBuiltInAndExternalItems() {
+        let model = PluginManagerModel()
+        #expect(!model.builtInItems.isEmpty)
+        #expect(model.externalItems.isEmpty)
+        #expect(model.builtInItems.allSatisfy { $0.packageURL == nil })
+    }
 }

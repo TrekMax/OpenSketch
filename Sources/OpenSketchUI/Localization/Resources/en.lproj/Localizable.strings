@@ -214,6 +214,10 @@
 "减去顶层形状" = "Subtract Top Shape";
 "排除重叠形状" = "Exclude Overlap";
 "插件" = "Plugins";
+"内建插件" = "Built-in Plugins";
+"外部扩展插件" = "External Extensions";
+"暂无外部扩展插件" = "No external extensions";
+"导入插件…" = "Import Plugin…";
 "插件管理器" = "Plugin Manager";
 "打开插件管理器" = "Open Plugin Manager";
 "暂无插件" = "No plugins";
