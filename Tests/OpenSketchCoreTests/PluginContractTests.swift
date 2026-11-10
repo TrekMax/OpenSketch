@@ -8,7 +8,12 @@ struct PluginContractTests {
         #expect(manifests.map(\.id) == [
             "org.opensketch.format.document",
             "org.opensketch.export.svg",
-            "org.opensketch.export.png"
+            "org.opensketch.export.png",
+            "org.opensketch.export.jpg",
+            "org.opensketch.export.pdf",
+            "org.opensketch.export.html",
+            "org.opensketch.export.assets",
+            "org.opensketch.preview.local"
         ])
         #expect(manifests[1].capabilities == [.readDocument, .export])
         let data = try JSONEncoder().encode(manifests)

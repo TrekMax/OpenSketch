@@ -9,7 +9,7 @@ import OpenSketchCore
                               backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.identifier = NSUserInterfaceItemIdentifier("plugins.window")
-        window.contentView = NSHostingView(rootView: PluginManagerView(manifests: BuiltInPluginRegistry.manifests))
+        window.contentView = NSHostingView(rootView: PluginManagerView(model: PluginManagerModel()))
         super.init(window: window)
         window.title = L10n.text("插件管理器")
         window.center()

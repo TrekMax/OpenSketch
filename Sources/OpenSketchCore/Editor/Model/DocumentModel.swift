@@ -5,6 +5,47 @@ public enum NodeKind: String, Codable, CaseIterable, Sendable {
     case frame, group, rectangle, ellipse, text, path
 }
 
+public enum StackAxis: String, Codable, CaseIterable, Sendable { case horizontal, vertical }
+public enum StackAlignment: String, Codable, CaseIterable, Sendable { case leading, center, trailing, fill }
+public enum StackSizing: String, Codable, CaseIterable, Sendable { case fixed, fit, fill }
+
+public struct StackPadding: Codable, Equatable, Sendable {
+    public var top: Double
+    public var right: Double
+    public var bottom: Double
+    public var left: Double
+    public init(top: Double = 0, right: Double = 0, bottom: Double = 0, left: Double = 0) {
+        self.top = top; self.right = right; self.bottom = bottom; self.left = left
+    }
+}
+
+public struct StackLayout: Codable, Equatable, Sendable {
+    public var axis: StackAxis
+    public var spacing: Double
+    public var padding: StackPadding
+    public var alignment: StackAlignment
+    public var sizing: StackSizing
+    public init(axis: StackAxis = .vertical, spacing: Double = 8, padding: StackPadding = .init(),
+                alignment: StackAlignment = .leading, sizing: StackSizing = .fixed) {
+        self.axis = axis; self.spacing = spacing; self.padding = padding
+        self.alignment = alignment; self.sizing = sizing
+    }
+}
+
+public struct NodeConstraints: Codable, Equatable, Sendable {
+    public var pinLeft: Bool
+    public var pinRight: Bool
+    public var pinTop: Bool
+    public var pinBottom: Bool
+    public var fixedWidth: Bool
+    public var fixedHeight: Bool
+    public init(pinLeft: Bool = false, pinRight: Bool = false, pinTop: Bool = false,
+                pinBottom: Bool = false, fixedWidth: Bool = true, fixedHeight: Bool = true) {
+        self.pinLeft = pinLeft; self.pinRight = pinRight; self.pinTop = pinTop; self.pinBottom = pinBottom
+        self.fixedWidth = fixedWidth; self.fixedHeight = fixedHeight
+    }
+}
+
 public struct RGBAColor: Codable, Equatable, Sendable {
     public var red: Double
     public var green: Double
@@ -132,6 +173,10 @@ public struct DesignNode: Codable, Equatable, Identifiable, Sendable {
     public var path: VectorPath
     public var children: [DesignNode]
     public var booleanSource: BooleanSource?
+    public var componentDefinitionID: UUID?
+    public var sharedStyleID: UUID?
+    public var stackLayout: StackLayout?
+    public var constraints: NodeConstraints?
 
     public init(id: UUID = UUID(), name: String = "", kind: NodeKind,
                 frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100), rotation: Double = 0,
@@ -144,6 +189,53 @@ public struct DesignNode: Codable, Equatable, Identifiable, Sendable {
         self.style = style ?? .default(for: kind); self.text = text; self.fontName = fontName
         self.fontSize = fontSize; self.textAlignment = textAlignment; self.path = path; self.children = children
         self.booleanSource = nil
+        self.componentDefinitionID = nil; self.sharedStyleID = nil; self.stackLayout = nil; self.constraints = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, kind, frame, rotation, isVisible, isLocked, clipsContent, style, text, fontName
+        case fontSize, textAlignment, path, children, booleanSource, componentDefinitionID, sharedStyleID
+        case stackLayout, constraints
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id); name = try c.decode(String.self, forKey: .name)
+        kind = try c.decode(NodeKind.self, forKey: .kind); frame = try c.decode(CGRect.self, forKey: .frame)
+        rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
+        isVisible = try c.decodeIfPresent(Bool.self, forKey: .isVisible) ?? true
+        isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        clipsContent = try c.decodeIfPresent(Bool.self, forKey: .clipsContent) ?? false
+        style = try c.decodeIfPresent(NodeStyle.self, forKey: .style) ?? .default(for: kind)
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        fontName = try c.decodeIfPresent(String.self, forKey: .fontName) ?? "Helvetica Neue"
+        fontSize = try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? 24
+        textAlignment = try c.decodeIfPresent(ParagraphAlignment.self, forKey: .textAlignment) ?? .left
+        path = try c.decodeIfPresent(VectorPath.self, forKey: .path) ?? .init()
+        children = try c.decodeIfPresent([DesignNode].self, forKey: .children) ?? []
+        booleanSource = try c.decodeIfPresent(BooleanSource.self, forKey: .booleanSource)
+        componentDefinitionID = try c.decodeIfPresent(UUID.self, forKey: .componentDefinitionID)
+        sharedStyleID = try c.decodeIfPresent(UUID.self, forKey: .sharedStyleID)
+        stackLayout = try c.decodeIfPresent(StackLayout.self, forKey: .stackLayout)
+        constraints = try c.decodeIfPresent(NodeConstraints.self, forKey: .constraints)
+    }
+}
+
+public struct ComponentDefinition: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var root: DesignNode
+    public init(id: UUID = UUID(), name: String, root: DesignNode) {
+        self.id = id; self.name = name; self.root = root
+    }
+}
+
+public struct SharedStyle: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var style: NodeStyle
+    public init(id: UUID = UUID(), name: String, style: NodeStyle) {
+        self.id = id; self.name = name; self.style = style
     }
 }
 
@@ -166,9 +258,22 @@ public struct DesignDocument: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
     public var pages: [DesignPage]
+    public var componentDefinitions: [ComponentDefinition]
+    public var sharedStyles: [SharedStyle]
     public init(id: UUID = UUID(), name: String = "未命名", pages: [DesignPage] = [DesignPage()],
                 format: String = Self.formatIdentifier, version: Int = Self.currentVersion) {
         self.id = id; self.name = name; self.pages = pages; self.format = format; self.version = version
+        self.componentDefinitions = []; self.sharedStyles = []
     }
     public static func blank() -> Self { Self() }
+
+    private enum CodingKeys: String, CodingKey { case format, version, id, name, pages, componentDefinitions, sharedStyles }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.decode(String.self, forKey: .format); version = try c.decode(Int.self, forKey: .version)
+        id = try c.decode(UUID.self, forKey: .id); name = try c.decode(String.self, forKey: .name)
+        pages = try c.decode([DesignPage].self, forKey: .pages)
+        componentDefinitions = try c.decodeIfPresent([ComponentDefinition].self, forKey: .componentDefinitions) ?? []
+        sharedStyles = try c.decodeIfPresent([SharedStyle].self, forKey: .sharedStyles) ?? []
+    }
 }

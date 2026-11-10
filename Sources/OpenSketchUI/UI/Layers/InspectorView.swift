@@ -55,6 +55,9 @@ struct InspectorView: View {
                     Toggle(L10n.text("裁剪内容"), isOn: Binding(get: { node.clipsContent }, set: { value in session.update(node.id) { $0.clipsContent = value } }))
                         .accessibilityIdentifier("inspector.clip")
                 }
+                if node.kind == .frame || node.kind == .group {
+                    stackSection(node)
+                }
                 if node.kind == .path {
                     sectionTitle(L10n.text("路径"))
                     HStack(spacing: 6) {
@@ -101,6 +104,38 @@ struct InspectorView: View {
             }
         }
         .font(.system(size: 11)).controlSize(.small)
+    }
+
+    @ViewBuilder private func stackSection(_ node: DesignNode) -> some View {
+        sectionTitle(L10n.text("Stack 布局"))
+        Toggle(L10n.text("启用 Stack"), isOn: Binding(
+            get: { node.stackLayout != nil },
+            set: { enabled in
+                session.update(node.id) { $0.stackLayout = enabled ? (node.stackLayout ?? StackLayout()) : nil }
+            }))
+            .accessibilityIdentifier("inspector.stackEnabled")
+        if let layout = node.stackLayout {
+            Picker(L10n.text("方向"), selection: Binding(get: { layout.axis }, set: { value in session.update(node.id) { $0.stackLayout?.axis = value }; session.applyStackLayout(node.id) })) {
+                Text(L10n.text("横向")).tag(StackAxis.horizontal)
+                Text(L10n.text("纵向")).tag(StackAxis.vertical)
+            }
+            Picker(L10n.text("对齐"), selection: Binding(get: { layout.alignment }, set: { value in session.update(node.id) { $0.stackLayout?.alignment = value }; session.applyStackLayout(node.id) })) {
+                Text(L10n.text("起始")).tag(StackAlignment.leading)
+                Text(L10n.text("居中")).tag(StackAlignment.center)
+                Text(L10n.text("结束")).tag(StackAlignment.trailing)
+                Text(L10n.text("填充")).tag(StackAlignment.fill)
+            }
+            HStack(spacing: 8) {
+                Text(L10n.text("间距"))
+                TextField("0", value: Binding(get: { layout.spacing }, set: { value in session.update(node.id) { $0.stackLayout?.spacing = max(0, value) }; session.applyStackLayout(node.id) }), format: .number)
+                    .textFieldStyle(.roundedBorder).accessibilityIdentifier("inspector.stackSpacing")
+            }
+            Picker(L10n.text("尺寸"), selection: Binding(get: { layout.sizing }, set: { value in session.update(node.id) { $0.stackLayout?.sizing = value }; session.applyStackLayout(node.id) })) {
+                Text(L10n.text("固定")).tag(StackSizing.fixed)
+                Text(L10n.text("适应")).tag(StackSizing.fit)
+                Text(L10n.text("填充")).tag(StackSizing.fill)
+            }
+        }
     }
 
     private func paintSection(node: DesignNode, stroke: Bool) -> some View {

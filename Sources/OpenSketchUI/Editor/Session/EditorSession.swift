@@ -44,6 +44,7 @@ import OpenSketchCore
     var pathEditingRequest: UUID?
     var togglePathClosed: ((UUID) -> Void)?
     var reversePath: ((UUID) -> Void)?
+    var pluginAuditEvents: [PluginAuditEvent] = []
     init(document: DesignDocument? = nil) {
         let document = document ?? DesignDocument(name: L10n.text("未命名"), pages: [DesignPage(name: L10n.format("页面 %d", 1))])
         self.document = document; history = DocumentHistory(document: document); pageID = document.pages[0].id
@@ -67,6 +68,33 @@ import OpenSketchCore
     } }
     func change(_ body: (inout DesignDocument) -> Void) { finishInput?(); history.begin(document: document); body(&document); history.commit(document: document) }
     func update(_ id: UUID, _ body: (inout DesignNode) -> Void) { guard editable(id) else { return }; change { $0.updateNode(id: id, body) } }
+    @discardableResult
+    func applyPluginPlan(_ plan: PluginOperationPlan, plugin: PluginManifest, approved: Bool) -> Bool {
+        finishInput?()
+        do {
+            let result = try PluginOperationExecutor.execute(plan, on: document, plugin: plugin, approved: approved)
+            history.begin(document: document)
+            document = result.document
+            _ = history.commit(document: document)
+            pluginAuditEvents.append(contentsOf: result.auditEvents)
+            reconcilePage()
+            return true
+        } catch {
+            pluginAuditEvents.append(contentsOf: plan.operations.map {
+                PluginAuditEvent(pluginID: plugin.id, operation: $0.kind, approved: false)
+            })
+            setMessage(.format("插件操作失败：%@", [.error(error)]))
+            return false
+        }
+    }
+    func applyStackLayout(_ id: UUID) {
+        guard document.node(id: id)?.stackLayout != nil else { return }
+        finishInput?(); history.begin(document: document)
+        do {
+            document = try StackLayoutEngine.applying(document, pageID: pageID)
+            _ = history.commit(document: document)
+        } catch { _ = history.cancel(); message = "自动布局失败" }
+    }
     func beginGesture() { gestureStart = document; history.begin(document: document) }
     func commitGesture() { history.commit(document: document); gestureStart = nil }
     func cancelGesture() { if let old = history.cancel() { document = old }; gestureStart = nil }

@@ -29,10 +29,13 @@ struct InspectorExportView: View {
             }
             Picker(L10n.text("格式"), selection: $session.exportOptions.format) {
                 Text("PNG").tag(ExportFormat.png)
+                Text("JPG").tag(ExportFormat.jpg)
                 Text("PDF").tag(ExportFormat.pdf)
                 Text("SVG").tag(ExportFormat.svg)
+                Text("HTML").tag(ExportFormat.html)
+                Text(L10n.text("素材包")).tag(ExportFormat.assets)
             }.accessibilityIdentifier("export.format")
-            if session.exportOptions.format == .png {
+            if session.exportOptions.format == .png || session.exportOptions.format == .jpg {
                 Picker(L10n.text("倍率"), selection: $session.exportOptions.scale) {
                     Text("1×").tag(1.0)
                     Text("2×").tag(2.0)

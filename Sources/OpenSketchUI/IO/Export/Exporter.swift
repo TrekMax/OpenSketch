@@ -28,7 +28,7 @@ import OpenSketchCore
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let source = sanitized.isEmpty || sanitized == "." || sanitized == ".." ? L10n.text("设计") : sanitized
         let scaleText = String(format: "%g", locale: Locale(identifier: "en_US_POSIX"), scale)
-        let suffix = format == .png && scale != 1 ? "@\(scaleText)x" : ""
+        let suffix = (format == .png || format == .jpg) && scale != 1 ? "@\(scaleText)x" : ""
         var base = ""
         for character in source {
             guard base.utf8.count + character.utf8.count + suffix.utf8.count <= 200 else { break }
@@ -49,6 +49,19 @@ import OpenSketchCore
         NSGraphicsContext.current = NSGraphicsContext(cgContext: c, flipped: true)
         CanvasRenderer.draw(page: page, in: c)
         guard let data = bitmap.representation(using: .png, properties: [:]) else { throw EditorError.invalid("PNG 编码失败") }; return data
+    }
+    static func jpg(page: DesignPage, bounds: CGRect, scale: Double = 1, quality: Double = 0.92) throws -> Data {
+        let size = try pixelSize(bounds: bounds, scale: scale)
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0), let graphics = NSGraphicsContext(bitmapImageRep: bitmap) else { throw EditorError.invalid("无法分配导出图像") }
+        NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }; NSGraphicsContext.current = graphics
+        let c = graphics.cgContext
+        c.setFillColor(NSColor.white.cgColor); c.fill(CGRect(origin: .zero, size: size))
+        c.translateBy(x: 0, y: size.height); c.scaleBy(x: scale, y: -scale); c.translateBy(x: -bounds.minX, y: -bounds.minY)
+        c.clip(to: bounds)
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: c, flipped: true)
+        CanvasRenderer.draw(page: page, in: c)
+        guard let data = bitmap.representation(using: .jpeg, properties: [.compressionFactor: min(1, max(0, quality))]) else { throw EditorError.invalid("JPEG 编码失败") }
+        return data
     }
     static func pdf(page: DesignPage, bounds: CGRect) throws -> Data {
         try validate(bounds); let data = NSMutableData(); var box = CGRect(origin: .zero, size: bounds.size)

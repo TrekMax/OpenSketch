@@ -13,8 +13,11 @@ import OpenSketchCore
         let data: Data
         switch format {
         case .png: data = try Exporter.png(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0], bounds: bounds, scale: scale)
+        case .jpg: data = try Exporter.jpg(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0], bounds: bounds, scale: scale)
         case .pdf: data = try Exporter.pdf(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0], bounds: bounds)
         case .svg: data = try SVGExporter.data(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0], bounds: bounds)
+        case .html: data = try M3PackageExporter.html(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0], bounds: bounds)
+        case .assets: data = try M3PackageExporter.assets(page: request.snapshot.document.pages.first { $0.id == request.snapshot.pageID } ?? request.snapshot.document.pages[0])
         }
         return PluginExportResult(data: data)
     }

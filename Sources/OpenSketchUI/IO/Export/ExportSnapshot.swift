@@ -1,7 +1,7 @@
 import AppKit
 import OpenSketchCore
 
-enum ExportFormat: String, CaseIterable { case png, pdf, svg }
+enum ExportFormat: String, CaseIterable { case png, jpg, pdf, svg, html, assets }
 enum ExportScope: String, CaseIterable { case selection, page }
 
 struct ExportOptions: Equatable {
