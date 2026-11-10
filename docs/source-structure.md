@@ -19,6 +19,7 @@ OpenSketchApp → OpenSketchUI → OpenSketchCore
 | `Editor/Canvas` | `CanvasEditing.swift`、`SceneGeometry.swift`、`PathEditing.swift`、`BooleanEditing.swift` | 框选、位移、吸附、变换、命中、路径几何、节点和布尔几何操作 |
 | `Editor/Layers` | `LayerEditing.swift`、`BooleanLayerEditing.swift`、`LayerTreeEditing.swift`、`ContainerEditing.swift` | 编组、布尔运算、排序、对齐分布和容器归属 |
 | `IO` | `DocumentCodec.swift`、`SketchMetadata.swift` | 原生文档编码、校验和包读写；Sketch 元数据解码 |
+| `Plugins` | `PluginContract.swift`、`PluginRegistry.swift`、`PluginLibrary.swift`、`PluginTaskManager.swift`、`PluginOperationExecutor.swift`、`DevicePreviewBackend.swift` | 插件契约、持久化安装、运行任务、操作事务及本地预览后端 |
 
 ## OpenSketchUI
 
@@ -35,6 +36,7 @@ OpenSketchApp → OpenSketchUI → OpenSketchCore
 | `UI/Layers` | `LayersSidebar.swift`、`NativeLayerTree.swift`、`NativeLayerTree+Coordinator.swift`、`LayerTreeItem.swift`、`NativeLayerOutline.swift`、`LayerTreeCell.swift`、`SidebarRenameField.swift`、`InspectorView.swift`、`InspectorNumberField.swift`、`LayerActionsView.swift`、`AppController+Layers.swift` | 页面与图层侧栏、原生树、检查器和图层菜单 |
 | `UI/ImportExport` | `InspectorExportView.swift` | 导出选项和尺寸预览 |
 | `UI/Settings` | `AppAppearance.swift`、`ApplicationSettingsView.swift`、`SettingsWindowController.swift`、`AppController+Settings.swift` | 外观偏好、通用设置窗口、设置菜单与原生语言刷新 |
+| `UI/Plugins` | `PluginManagerModel.swift`、`PluginManagerModel+Runtime.swift`、`PluginManagerView.swift`、`PluginRuntimeViews.swift`、`PluginManagerWindowController.swift`、`AppController+Plugins.swift` | 插件管理、任务/审计展示、本地预览与应用共享生命周期 |
 | `UI/Shared` | `EditorPalette.swift`、`EditorFieldStyle.swift` | 共享界面颜色和输入框样式 |
 | `Rendering` | `CanvasView.swift`、`CanvasView+Precision.swift`、`CanvasView+Containers.swift`、`CanvasRenderer.swift`、`TextLayout.swift` | 画布输入与绘制、临时反馈、文字布局；绘制规则供导出复用 |
 | `IO` | `AppController.swift`、`AppController+Documents.swift`、`SketchFileInspector.swift` | 应用和窗口生命周期、文档面板及文件操作、Sketch ZIP 元数据读取 |

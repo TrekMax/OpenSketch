@@ -9,6 +9,12 @@ import OpenSketchCore
     let appearance = AppAppearance()
     var settingsController: SettingsWindowController?
     var pluginManagerController: PluginManagerWindowController?
+    lazy var pluginManagerModel: PluginManagerModel = {
+        let model = PluginManagerModel()
+        model.currentSession = { [weak self] in self?.session }
+        model.sessions = { [weak self] in self?.workspace.documents.map(\.session) ?? [] }
+        return model
+    }()
     var applicationMenu: NSMenu?
     static let documentType = UTType(filenameExtension: "opensketch", conformingTo: .package) ?? .package
     var window: NSWindow!
@@ -188,7 +194,7 @@ import OpenSketchCore
     }
 
     @objc func showPluginManager(_ sender: Any?) {
-        if pluginManagerController == nil { pluginManagerController = PluginManagerWindowController() }
+        if pluginManagerController == nil { pluginManagerController = PluginManagerWindowController(model: pluginManagerModel) }
         pluginManagerController?.showWindow(sender)
         pluginManagerController?.window?.makeKeyAndOrderFront(sender)
     }

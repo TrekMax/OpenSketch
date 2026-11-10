@@ -15,7 +15,8 @@ public actor PluginTaskManager {
 
     public func update(_ id: UUID, state: PluginTaskState, fraction: Double, message: String? = nil, error: String? = nil) {
         guard var progress = tasks[id], progress.state != .completed, progress.state != .failed, progress.state != .cancelled else { return }
-        progress.state = state; progress.fraction = fraction; progress.message = message; progress.error = error
+        progress.state = state; progress.fraction = fraction.isFinite ? min(1, max(0, fraction)) : 0
+        progress.message = message; progress.error = error
         tasks[id] = progress
     }
 

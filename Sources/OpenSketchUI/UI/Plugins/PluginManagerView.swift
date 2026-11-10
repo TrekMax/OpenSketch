@@ -4,6 +4,7 @@ import OpenSketchCore
 struct PluginManagerView: View {
     @Bindable var model: PluginManagerModel
     @State private var selectedID: String?
+    @State private var tab = 0
 
     var body: some View {
         NavigationSplitView {
@@ -46,22 +47,50 @@ struct PluginManagerView: View {
             }
             .navigationTitle(L10n.text("插件"))
         } detail: {
-            if let id = selectedID, let item = model.items.first(where: { $0.id == id }) {
-                PluginDetailView(item: item, model: model)
-            } else if let item = model.items.first {
-                PluginDetailView(item: item, model: model)
-            } else {
-                Text(L10n.text("暂无插件"))
-                    .foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                if let error = model.lastError {
+                    HStack {
+                        Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
+                        Spacer()
+                        Button(L10n.text("关闭")) { model.lastError = nil }
+                    }.padding()
+                }
+                Picker(L10n.text("插件管理器"), selection: $tab) {
+                    Text(L10n.text("插件信息")).tag(0)
+                    Text(L10n.text("任务记录")).tag(1)
+                    Text(L10n.text("审计记录")).tag(2)
+                    Text(L10n.text("设备预览")).tag(3)
+                }.pickerStyle(.segmented).padding()
+                switch tab {
+                case 1: PluginTasksView(model: model)
+                case 2: PluginAuditView(model: model)
+                case 3: PluginDevicesView(model: model)
+                default: pluginDetail
+                }
             }
         }
         .toolbar {
             ToolbarItemGroup {
                 Button(L10n.text("安装插件"), systemImage: "plus") { model.chooseAndInstall() }
                     .accessibilityIdentifier("plugin.install")
+                Button(L10n.text("刷新"), systemImage: "arrow.clockwise") {
+                    Task { await model.refreshRuntime() }
+                }
             }
         }
-        .frame(minWidth: 700, minHeight: 440)
+        .task { await model.refreshRuntime() }
+        .frame(minWidth: 820, minHeight: 520)
+    }
+
+    @ViewBuilder private var pluginDetail: some View {
+        if let id = selectedID, let item = model.items.first(where: { $0.id == id }) {
+            PluginDetailView(item: item, model: model)
+        } else if let item = model.items.first {
+            PluginDetailView(item: item, model: model)
+        } else {
+            Text(L10n.text("暂无插件"))
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -69,7 +98,7 @@ struct PluginManagerView: View {
         HStack {
             Label(item.manifest.name, systemImage: item.manifest.kind == .exporter ? "arrow.up.doc" : "puzzlepiece.extension")
             Spacer()
-            Circle().fill(item.enabled ? .green : .gray).frame(width: 7, height: 7)
+            Circle().fill(item.error != nil ? .red : item.enabled ? .green : .gray).frame(width: 7, height: 7)
         }
         .tag(item.id)
         .accessibilityIdentifier("plugin.\(item.id)")
@@ -89,6 +118,12 @@ private struct PluginDetailView: View {
                 LabeledContent(L10n.text("类型"), value: item.manifest.kind.rawValue)
                 LabeledContent(L10n.text("API 版本"), value: String(item.manifest.apiVersion))
                 Toggle(L10n.text("启用"), isOn: Binding(get: { item.enabled }, set: { model.setEnabled($0, id: item.id) }))
+                    .disabled(item.manifest.kind == .documentFormat && item.packageURL == nil)
+                if let error = item.error { Text(error).foregroundStyle(.red) }
+                if item.packageURL != nil {
+                    Text(L10n.text("已注册；外部代码执行尚未接入。")).foregroundStyle(.secondary)
+                    Button(L10n.text("卸载插件"), role: .destructive) { model.uninstall(id: item.id) }
+                }
             }
             Section(L10n.text("能力")) {
                 ForEach(item.manifest.capabilities.sorted { $0.rawValue < $1.rawValue }, id: \.rawValue) { capability in

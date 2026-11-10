@@ -13,6 +13,7 @@ public actor LocalDevicePreviewBackend {
     public func discover() -> [PreviewDevice] { statuses.values.map(\.device).sorted { $0.name < $1.name } }
 
     public func connect(_ id: UUID) throws -> DevicePreviewStatus {
+        try Task.checkCancellation()
         guard var status = statuses[id] else { throw PluginDeviceError.deviceNotFound }
         status.state = .connected; status.device.isConnected = true; status.message = nil; statuses[id] = status
         return status
@@ -24,6 +25,7 @@ public actor LocalDevicePreviewBackend {
     }
 
     public func sync(_ snapshot: DevicePreviewSnapshot, to id: UUID) throws -> DevicePreviewStatus {
+        try Task.checkCancellation()
         guard var status = statuses[id] else { throw PluginDeviceError.deviceNotFound }
         guard status.device.isConnected else { throw PluginDeviceError.notConnected }
         status.state = .syncing; statuses[id] = status

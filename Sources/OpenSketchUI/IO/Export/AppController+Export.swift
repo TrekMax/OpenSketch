@@ -15,10 +15,12 @@ extension AppController {
                 chooseDestination: ((PreparedExport) -> URL?)? = nil) {
         guard let document = workspace.documents.first(where: { $0.id == documentID }) else { return }
         let session = document.session
+        let pluginID = "org.opensketch.export.\((format ?? session.exportOptions.format).rawValue)"
         // Finish the initiating document, including native field editors, before capture.
         if document.id == workspace.currentID { finishDocumentInput() }
         else { session.finishInput?() }
         do {
+            try pluginManagerModel.requireEnabled(pluginID)
             let prepared = try session.prepareExport(format: format)
             let destination = chooseDestination ?? { prepared in
                 let panel = NSSavePanel()
@@ -36,8 +38,13 @@ extension AppController {
                 return panel.runModal() == .OK ? panel.url : nil
             }
             guard let url = destination(prepared) else { return }
+            try pluginManagerModel.requireEnabled(pluginID)
             try prepared.data().write(to: url, options: .atomic)
+            pluginManagerModel.recordExport(pluginID: pluginID)
             session.setMessage(.format("已导出 %@", [.value(url.lastPathComponent)]))
-        } catch { self.error(error) }
+        } catch {
+            pluginManagerModel.recordExport(pluginID: pluginID, error: L10n.errorDescription(error))
+            self.error(error)
+        }
     }
 }
