@@ -1,4 +1,5 @@
 import Foundation
+import OpenSketchCore
 
 /// Captures geometry and validated output settings before a destination panel runs.
 @MainActor struct PreparedExport {
@@ -8,11 +9,11 @@ import Foundation
     var filename: String { Exporter.filename(name: snapshot.name, format: options.format, scale: options.scale) }
 
     func data() throws -> Data {
-        switch options.format {
-        case .png: try Exporter.png(page: snapshot.page, bounds: snapshot.bounds, scale: options.scale)
-        case .pdf: try Exporter.pdf(page: snapshot.page, bounds: snapshot.bounds)
-        case .svg: try SVGExporter.data(page: snapshot.page, bounds: snapshot.bounds)
-        }
+        let document = DesignDocument(name: snapshot.page.name, pages: [snapshot.page])
+        let request = PluginExportRequest(snapshot: PluginDocumentSnapshot(document: document, pageID: snapshot.page.id), outputExtension: options.format.rawValue)
+        let result = try BuiltInPluginExecutor.export(request, format: options.format, bounds: snapshot.bounds, scale: options.scale)
+        guard let data = result.data else { throw EditorError.invalid("插件没有返回导出数据。") }
+        return data
     }
 }
 
