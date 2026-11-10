@@ -8,6 +8,7 @@ import OpenSketchCore
     var session: EditorSession { workspace.current.session }
     let appearance = AppAppearance()
     var settingsController: SettingsWindowController?
+    var pluginManagerController: PluginManagerWindowController?
     var applicationMenu: NSMenu?
     static let documentType = UTType(filenameExtension: "opensketch", conformingTo: .package) ?? .package
     var window: NSWindow!
@@ -129,7 +130,7 @@ import OpenSketchCore
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("view.zoomSlider"), .init("view.zoomIn"), .init("view.zoomOut")]
+         [.init("document.new"), .init("document.tabs"), .flexibleSpace, .init("plugin.manager"), .init("view.zoomSlider"), .init("view.zoomIn"), .init("view.zoomOut")]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -155,6 +156,11 @@ import OpenSketchCore
             let host = NSHostingView(rootView: ZoomControlView(workspace: workspace))
             host.frame = CGRect(x: 0, y: 0, width: 176, height: 32)
             item.view = host
+        case "plugin.manager":
+            item.label = L10n.text("插件管理器")
+            item.toolTip = L10n.text("打开插件管理器")
+            item.image = NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: item.label)
+            item.action = #selector(showPluginManager(_:))
         case "view.zoomIn":
             item.label = L10n.text("放大"); item.toolTip = L10n.text("放大画布")
             item.image = NSImage(systemSymbolName: "plus.magnifyingglass", accessibilityDescription: L10n.text("放大"))
@@ -179,5 +185,11 @@ import OpenSketchCore
             item.view = button
         }
         return item
+    }
+
+    @objc func showPluginManager(_ sender: Any?) {
+        if pluginManagerController == nil { pluginManagerController = PluginManagerWindowController() }
+        pluginManagerController?.showWindow(sender)
+        pluginManagerController?.window?.makeKeyAndOrderFront(sender)
     }
 }
