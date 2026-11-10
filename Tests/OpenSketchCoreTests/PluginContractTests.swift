@@ -23,4 +23,21 @@ struct PluginContractTests {
         #expect(try JSONDecoder().decode(PluginDocumentSnapshot.self, from: JSONEncoder().encode(snapshot)) == snapshot)
         #expect(try JSONDecoder().decode(PluginExportResult.self, from: JSONEncoder().encode(result)) == result)
     }
+
+    @Test func pluginPackageManifestDefinesTheOpskpluginFormat() throws {
+        let plugin = PluginManifest(id: "org.example.demo", name: "Demo", kind: .exporter,
+                                    capabilities: [.readDocument, .export])
+        let package = PluginPackageManifest(plugin: plugin, entrypoint: "Contents/DemoPlugin")
+        try package.validate()
+        let decoded = try JSONDecoder().decode(PluginPackageManifest.self, from: JSONEncoder().encode(package))
+        #expect(decoded == package)
+        #expect(PluginPackageManifest.packageExtension == "opskplugin")
+        #expect(PluginPackageLayout.manifestPath == "plugin.json")
+    }
+
+    @Test func pluginPackageManifestRejectsInvalidIdentity() {
+        let plugin = PluginManifest(id: "bad id", name: "Bad", kind: .exporter)
+        let package = PluginPackageManifest(plugin: plugin, entrypoint: "Contents/Main")
+        #expect(throws: PluginPackageError.invalidManifest) { try package.validate() }
+    }
 }
