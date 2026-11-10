@@ -22,6 +22,7 @@ extension AppController {
             case "view.zoomSlider": ("缩放", "画布缩放")
             case "view.zoomIn": ("放大", "放大画布")
             case "view.zoomOut": ("缩小", "缩小画布")
+            case "plugin.manager": ("插件管理器", "打开插件管理器")
             default: nil
             }
             guard let keys else { continue }
